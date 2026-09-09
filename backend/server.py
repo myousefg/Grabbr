@@ -70,6 +70,10 @@ PORT = int(os.environ.get("GRABBR_PORT", "8766"))
 GDL_BIN_ENV = os.environ.get("GRABBR_GDL_BIN") or ""
 _EXE = ".exe" if os.name == "nt" else ""
 
+# Keep console-subsystem children (gallery-dl.exe, ffmpeg, taskkill, ...) from
+# flashing a command window when the packaged GUI backend has no console itself.
+CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
+
 
 def tool_path(name: str) -> Optional[str]:
     """A binary Grabbr downloaded into its own tools/ folder, if present."""
@@ -659,7 +663,7 @@ class JobManager:
                 try:
                     await asyncio.to_thread(
                         subprocess.run, ["taskkill", "/F", "/T", "/PID", str(pid)],
-                        capture_output=True, timeout=5,
+                        capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW,
                     )
                 except Exception:
                     pass
@@ -705,7 +709,7 @@ class JobManager:
         )
         await ws_manager.broadcast({"type": "job.update", "job": _job_public(_job_row(job_id))})
 
-        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+        creationflags = (subprocess.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW) if os.name == "nt" else 0
         counts = {"files_ok": 0, "files_skipped": 0, "files_error": 0}
         errors: List[str] = []
         last_flush = 0.0
@@ -832,7 +836,7 @@ async def run_preview(url: str, options: Optional[dict] = None,
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=sub_env(),
+            env=sub_env(), creationflags=CREATE_NO_WINDOW,
         )
     except FileNotFoundError:
         raise HTTPException(500, f"gallery-dl binary not found at: {gdl_bin()}")
@@ -909,7 +913,7 @@ async def _oauth_worker(site: str, run: OAuthRun, target: str):
         proc = await asyncio.create_subprocess_exec(
             gdl_bin(), "--no-colors", target,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=sub_env(),
+            env=sub_env(), creationflags=CREATE_NO_WINDOW,
         )
     except FileNotFoundError:
         run.done, run.error = True, f"gallery-dl not found at {gdl_bin()}"
@@ -945,7 +949,7 @@ async def _oauth_worker(site: str, run: OAuthRun, target: str):
             if os.name == "nt":
                 await asyncio.to_thread(
                     subprocess.run, ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
-                    capture_output=True, timeout=5)
+                    capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW)
             else:
                 proc.kill()
         except Exception:
@@ -998,7 +1002,8 @@ def _upsert_site(site: str, patch: dict):
 # ── tools (gallery-dl / ffmpeg / yt-dlp) ───────────────────────────────────
 def _run_version(exe: str) -> str:
     try:
-        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10, env=sub_env())
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10,
+                             env=sub_env(), creationflags=CREATE_NO_WINDOW)
         return (out.stdout or out.stderr).strip().splitlines()[0] if (out.stdout or out.stderr).strip() else ""
     except Exception:
         return ""
@@ -1075,7 +1080,8 @@ def latest_version(name: str) -> Optional[str]:
 
 def _ffmpeg_version(exe: str) -> str:
     try:
-        out = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=10)
+        out = subprocess.run([exe, "-version"], capture_output=True, text=True, timeout=10,
+                             creationflags=CREATE_NO_WINDOW)
         m = re.search(r"ffmpeg version (\d[\w.]*)", out.stdout or "")
         return m.group(1).rstrip(".") if m else ((out.stdout or "").splitlines()[:1] or [""])[0]
     except Exception:
@@ -1413,7 +1419,8 @@ def _running_procs() -> set:
     if os.name != "nt":
         return set()
     try:
-        out = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True, timeout=8)
+        out = subprocess.run(["tasklist", "/fo", "csv", "/nh"], capture_output=True, text=True, timeout=8,
+                             creationflags=CREATE_NO_WINDOW)
         return {ln.split('","')[0].lstrip('"').lower() for ln in out.stdout.splitlines() if ln}
     except Exception:
         return set()
@@ -1762,7 +1769,8 @@ async def verify_site(site: str, body: VerifyIn):
     argv = build_argv(body.probe_url.strip(), get_settings(), simulate=True)
     try:
         proc = await asyncio.create_subprocess_exec(
-            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            env=sub_env(), creationflags=CREATE_NO_WINDOW,
         )
         out_b, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
     except asyncio.TimeoutError:
@@ -1814,7 +1822,7 @@ async def cancel_oauth(site: str):
             if os.name == "nt":
                 await asyncio.to_thread(
                     subprocess.run, ["taskkill", "/F", "/T", "/PID", str(run.proc.pid)],
-                    capture_output=True, timeout=5)
+                    capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW)
             else:
                 run.proc.kill()
         except Exception:
