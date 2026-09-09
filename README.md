@@ -9,7 +9,7 @@ gallery, profile, or tag-search URLs and watch them download with a live queue, 
 a streaming log, a searchable history, per-site logins, and a one-click tool installer. No command
 line, no hand-editing a JSON config.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)](https://github.com/myousefg/grabbr/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue?style=flat-square)](https://github.com/myousefg/Grabbr/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)](#)
 [![Stack](https://img.shields.io/badge/stack-Electron%20%2B%20React%20%2B%20Python-informational?style=flat-square)](#)
 
@@ -69,7 +69,7 @@ command line.
 **Windows 10 or 11, 64-bit.**
 
 1. Download **`Grabbr-Setup-1.0.0.exe`** from the
-   [latest release](https://github.com/myousefg/grabbr/releases/latest).
+   [latest release](https://github.com/myousefg/Grabbr/releases/latest).
 2. Run it. Because the build is not code-signed, Windows SmartScreen may show a blue warning:
    click **More info**, then **Run anyway**.
 3. It installs into your user profile (no administrator prompt) and launches.
