@@ -4,7 +4,7 @@ export const RATE_LIMIT_COOLDOWN_MIN = 30;
 
 /**
  * Minutes the site is likely still throttling, based on when the job failed.
- * Advisory only — Retry stays enabled; the number just tells the user how long
+ * Advisory only. Retry stays enabled; the number just tells the user how long
  * to reasonably wait. 0 = the window has passed.
  */
 export function retryCooldownMin(job) {

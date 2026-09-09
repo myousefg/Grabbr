@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 /**
  * Catches render/lifecycle errors anywhere below it and shows a recoverable
  * fallback instead of a blank window. API rejections are handled at the call
- * sites and by the global handler in index.js — this is for the rare render bug.
+ * sites and by the global handler in index.js. This is for the rare render bug.
  */
 export default class ErrorBoundary extends Component {
   constructor(props) {

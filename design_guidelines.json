@@ -70,7 +70,7 @@
   },
   "motion_and_interactions": {
     "rules": [
-      "Animations: Minimalist — use micro-interactions for feedback.",
+      "Animations: Minimalist, use micro-interactions for feedback.",
       "Hover states: Subtle background darkening or lightening.",
       "Transitions: Use specific properties (e.g., transition-colors duration-200 ease-in-out).",
       "Respect prefers-reduced-motion."

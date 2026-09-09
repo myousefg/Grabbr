@@ -1,4 +1,4 @@
-# PyInstaller spec — run: pyinstaller grabbr_backend.spec
+# PyInstaller spec. Run: pyinstaller grabbr_backend.spec
 from PyInstaller.utils.hooks import collect_submodules
 
 a = Analysis(

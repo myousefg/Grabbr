@@ -18,7 +18,7 @@ const MODES = ['auto', 'page', 'scan'];
 // Grabbr passes URLs straight to gallery-dl, so a mode is just a prefix.
 const MODE_PREFIX = { auto: '', page: 'generic:', scan: 'r:' };
 
-// Sites with a real gallery-dl extractor — "Whole page" / "Scan" only grab page
+// Sites with a real gallery-dl extractor. "Whole page" / "Scan" only grab page
 // chrome here (Instagram etc. render posts via JS), so warn if a mode is picked.
 const DEDICATED = /(?:^|\.)(?:instagram|twitter|x|nitter|reddit|redd|pixiv|fanbox|fantia|patreon|deviantart|tumblr|artstation|newgrounds|flickr|weibo|pinterest|kemono|coomer|danbooru|gelbooru|e621|e926|rule34|konachan|yande|sankakucomplex|zerochan|bsky|mastodon\.social|threads\.net|facebook|tiktok|youtube|bilibili)\.\w/i;
 

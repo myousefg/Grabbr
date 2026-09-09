@@ -27,7 +27,7 @@ export const SITE_GROUPS = [
         note: 'Public tweets work without login. Needed for NSFW, protected, or rate-limited accounts.',
         probe: 'https://x.com/X' },
       { id: 'tiktok', name: 'TikTok', domain: 'tiktok.com', auth: 'cookies',
-        note: 'Videos download through yt-dlp — install it in Settings → Tools. Cookies needed for profiles, likes, saved, and stories. Single public videos usually work without.',
+        note: 'Videos download through yt-dlp. Install it in Settings, Tools. Cookies needed for profiles, likes, saved, and stories. Single public videos usually work without.',
         probe: 'https://www.tiktok.com/@tiktok' },
       { id: 'patreon', name: 'Patreon', domain: 'patreon.com', auth: 'cookies',
         probe: 'https://www.patreon.com/patreon' },

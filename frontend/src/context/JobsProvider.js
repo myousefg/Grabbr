@@ -27,6 +27,7 @@ export function JobsProvider({ children }) {
   const prevStatusRef = useRef(null);            // id -> last-seen status (null = not primed yet)
 
   const upsert = useCallback((job) => {
+    if (!job || !job.id) return;
     setJobs(prev => ({ ...prev, [job.id]: { ...prev[job.id], ...job } }));
   }, []);
 
@@ -140,7 +141,7 @@ export function JobsProvider({ children }) {
     return created;
   }, [upsert]);
 
-  // A 404 here just means the job is already gone — reconcile locally, don't throw.
+  // A 404 here just means the job is already gone. Reconcile locally, don't throw.
   const dropLocal = useCallback((id) => {
     setJobs(prev => { const n = { ...prev }; delete n[id]; return n; });
     setLogs(prev => { const n = { ...prev }; delete n[id]; return n; });

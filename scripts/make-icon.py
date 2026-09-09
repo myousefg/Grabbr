@@ -3,7 +3,7 @@
 Generate the Grabbr app icon (window / tray / installer).
 
 Swiss / high-contrast look: near-black rounded tile, bold white "pull down into
-a tray" glyph — a download arrow sitting on a baseline.
+a tray" glyph, a download arrow sitting on a baseline.
 
     py scripts/make-icon.py
     -> electron/assets/icon.ico  (16..256 multi-res)
@@ -17,7 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "electron", "assets")
 os.makedirs(OUT, exist_ok=True)
 
-BG = (10, 10, 10, 255)       # #0a0a0a — matches the app background
+BG = (10, 10, 10, 255)       # #0a0a0a, matches the app background
 FG = (255, 255, 255, 255)
 
 S = 1024                     # master canvas

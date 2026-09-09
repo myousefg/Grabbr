@@ -10,7 +10,7 @@ module.exports = {
       return webpackConfig;
     },
   },
-  // Disable ESLint during build entirely — avoids missing plugin errors
+  // Disable ESLint during build entirely, avoids missing plugin errors
   eslint: {
     enable: false,
   },

@@ -18,9 +18,9 @@ window.addEventListener("unhandledrejection", (event) => {
   if (isBenignNetworkError(event.reason)) {
     event.preventDefault();
     const status = event.reason?.response?.status;
-    // 404/409 on a job action just means it is already gone — stay quiet.
+    // 404/409 on a job action just means it is already gone. Stay quiet.
     if (status !== 404 && status !== 409) {
-      toast.error(status ? `Request failed (${status})` : "Network error — is the backend running?");
+      toast.error(status ? `Request failed (${status})` : "Network error. Is the backend running?");
     }
     // eslint-disable-next-line no-console
     console.warn("[grabbr] swallowed unhandled rejection:", event.reason);

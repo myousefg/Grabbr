@@ -5,7 +5,7 @@ const SettingsContext = createContext(null);
 
 /**
  * Single source of truth for app settings + /api/env. Edits are optimistic and
- * pushed to the backend on a short debounce — no Save button anywhere.
+ * pushed to the backend on a short debounce. No Save button anywhere.
  */
 export function SettingsProvider({ children }) {
   const [settings, setSettings] = useState(null);

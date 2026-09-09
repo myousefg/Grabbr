@@ -10,7 +10,7 @@ dist/
 *.db
 .env
 
-# Bundled gallery-dl binary — fetched by scripts\fetch-gdl.bat, not committed
+# Bundled gallery-dl binary, fetched by scripts\fetch-gdl.bat, not committed
 bin/gallery-dl.exe
 bin/gallery-dl
 

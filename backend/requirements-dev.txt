@@ -1,5 +1,5 @@
 # Dev-only tools, not needed at runtime or for the packaged app.
 -r requirements.txt
 
-# scripts/make-icon.py — regenerates electron/assets/icon.*
+# scripts/make-icon.py regenerates electron/assets/icon.*
 pillow>=10

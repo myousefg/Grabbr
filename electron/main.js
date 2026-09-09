@@ -2,7 +2,7 @@ const {
   app, BrowserWindow, Tray, Menu,
   ipcMain, dialog, shell, nativeImage, Notification,
 } = require('electron');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const path = require('path');
 const fs   = require('fs');
@@ -96,7 +96,17 @@ function startBackend() {
 }
 
 function stopBackend() {
-  if (backendProc) { backendProc.kill(); backendProc = null; }
+  if (!backendProc) return;
+  const pid = backendProc.pid;
+  // The frozen backend is a PyInstaller one-file exe: killing the bootloader
+  // leaves the real Python child (and any gallery-dl it spawned) holding port
+  // 8766, which breaks the next launch. Reap the whole tree.
+  if (process.platform === 'win32' && pid) {
+    try { spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true }); }
+    catch { /* fall through to kill() */ }
+  }
+  try { backendProc.kill(); } catch { /* already gone */ }
+  backendProc = null;
 }
 
 function patchConcurrency(value) {
@@ -150,7 +160,7 @@ function buildTrayMenu() {
         queuePaused = !queuePaused;
         patchConcurrency(queuePaused ? 0 : savedConcurrency);
         tray.setContextMenu(buildTrayMenu());
-        tray.setToolTip(queuePaused ? 'Grabbr — queue paused' : 'Grabbr — Image Downloader');
+        tray.setToolTip(queuePaused ? 'Grabbr (queue paused)' : 'Grabbr');
       },
     },
     { type: 'separator' },
@@ -160,7 +170,7 @@ function buildTrayMenu() {
 
 function createTray() {
   tray = new Tray(nativeImage.createFromPath(TRAY_ICON_PATH));
-  tray.setToolTip('Grabbr — Image Downloader');
+  tray.setToolTip('Grabbr');
   tray.setContextMenu(buildTrayMenu());
   tray.on('click', () => { mainWindow?.show(); mainWindow?.focus(); });
 }
@@ -214,8 +224,8 @@ ipcMain.handle('show-notification', (_, { title, body }) => {
 ipcMain.handle('set-tray-badge', (_, count) => {
   if (!tray) return;
   tray.setToolTip(
-    count > 0 ? `Grabbr — ${count} download${count !== 1 ? 's' : ''} active`
-              : queuePaused ? 'Grabbr — queue paused' : 'Grabbr — Image Downloader',
+    count > 0 ? `Grabbr (${count} download${count !== 1 ? 's' : ''} active)`
+              : queuePaused ? 'Grabbr (queue paused)' : 'Grabbr',
   );
 });
 

@@ -92,7 +92,7 @@ def gdl_bin() -> str:
 
 
 def sub_env() -> dict:
-    """Env for gallery-dl subprocesses — tools/ on PATH so a downloaded
+    """Env for gallery-dl subprocesses: tools/ on PATH so a downloaded
     ffmpeg / yt-dlp is found without extra config."""
     env = dict(os.environ)
     env["PATH"] = str(TOOLS_DIR) + os.pathsep + env.get("PATH", "")
@@ -102,7 +102,7 @@ def sub_env() -> dict:
 DEFAULT_OUTPUT_DIR = str(Path.home() / "Grabbr")
 APP_VERSION = "1.0.0"                                # single source at runtime
 
-# Browsers gallery-dl can read cookies from. "operagx" is synthetic — we map it
+# Browsers gallery-dl can read cookies from. "operagx" is synthetic; we map it
 # to opera + the Opera GX profile path in build_gdl_config().
 COOKIE_BROWSERS = [
     "firefox", "librewolf", "zen", "floorp",
@@ -282,7 +282,7 @@ def db_run(sql, p=()):
             c.execute(sql, p)
             c.commit()
         except sqlite3.Error as e:
-            log.error("db_run failed — %s\nSQL: %s\n%s", e, sql.strip(), _traceback.format_exc().rstrip())
+            log.error("db_run failed: %s\nSQL: %s\n%s", e, sql.strip(), _traceback.format_exc().rstrip())
             raise
         finally:
             c.close()
@@ -383,7 +383,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
     for j in db_all("SELECT id FROM jobs WHERE status IN ('running','queued')"):
         db_run(
             "UPDATE jobs SET status='error', error_text=?, finished_at=? WHERE id=?",
-            ("Interrupted — backend restarted before this job finished.", _now(), j["id"]),
+            ("Interrupted: backend restarted before this job finished.", _now(), j["id"]),
         )
     write_gdl_config()
 
@@ -499,7 +499,7 @@ def build_argv(url: str, settings: dict, options: Optional[dict] = None,
     if options.get("range"):
         argv += ["--range", _norm_range(str(options["range"]))]
     if options.get("no_archive"):
-        # ignore the download archive for this run — re-checks the filesystem
+        # ignore the download archive for this run, re-checks the filesystem
         # instead, so deleted files get pulled again
         argv += ["-o", "archive="]
     if int(settings.get("write_metadata", 0)) and not simulate:
@@ -521,7 +521,7 @@ _AUTH_ERR = re.compile(
     re.I,
 )
 
-# Site is throttling this IP. Retrying quickly makes it worse — the UI shows a
+# Site is throttling this IP. Retrying quickly makes it worse; the UI shows a
 # cooldown instead of an active Retry button.
 _RATE_LIMIT = re.compile(
     r"\b429\b|too many requests|rate limit|rate-limit|ratelimit|"
@@ -531,7 +531,7 @@ _RATE_LIMIT = re.compile(
 )
 
 # gallery-dl can't open a Chromium cookie DB while that browser is running
-# (exclusive file lock). Distinct from a plain auth failure — the fix is
+# (exclusive file lock). Distinct from a plain auth failure; the fix is
 # different (close the browser / use Firefox / cookies.txt).
 _COOKIE_LOCKED = re.compile(
     r"cookies:.*(?:\[errno 13\]|permission denied|winerror 32|being used by another process)",
@@ -608,7 +608,9 @@ def _job_row(job_id: str) -> Optional[dict]:
     return db_one("SELECT * FROM jobs WHERE id=?", (job_id,))
 
 
-def _job_public(row: dict) -> dict:
+def _job_public(row: Optional[dict]) -> dict:
+    if not row:
+        return {}
     row = dict(row)
     try:
         row["options"] = json.loads(row.pop("options_json", "{}") or "{}")
@@ -820,7 +822,9 @@ class JobManager:
             (status, counts["files_ok"], counts["files_skipped"], counts["files_error"],
              "\n".join(errors[-20:]), rc, hint, dest_final, _now(), job_id),
         )
-        await ws_manager.broadcast({"type": "job.update", "job": _job_public(_job_row(job_id))})
+        final_row = _job_row(job_id)
+        if final_row:  # may be gone if the user hit Delete mid-run
+            await ws_manager.broadcast({"type": "job.update", "job": _job_public(final_row)})
         async with self.cond:
             self.cond.notify_all()
 
@@ -868,7 +872,7 @@ async def run_preview(url: str, options: Optional[dict] = None,
         return {"url": url, "count": count, "files": files, "truncated": True,
                 "errors": errors, "needs_auth": bool(_AUTH_ERR.search(eblob)),
                 "rate_limited": bool(_RATE_LIMIT.search(eblob)),
-                "note": "Preview timed out — partial result."}
+                "note": "Preview timed out. Partial result."}
 
     eblob = "\n".join(errors)
     return {
@@ -969,7 +973,7 @@ async def _oauth_worker(site: str, run: OAuthRun, target: str):
         _upsert_site(site, {"token_json": json.dumps(merged)})
         write_gdl_config()
     else:
-        run.error = "No tokens found in gallery-dl output — see the log."
+        run.error = "No tokens found in gallery-dl output. See the log."
     await ws_manager.broadcast(
         {"type": "site.oauth", "site": site, "done": True, "ok": run.ok, "keys": list(run.keys), "error": run.error}
     )
@@ -1100,7 +1104,7 @@ def find_tool(name: str) -> dict:
     if not exe:
         avail = "install"
     elif latest is None:
-        avail = "installed"            # can't compare (ffmpeg) — offer reinstall only
+        avail = "installed"            # can't compare (ffmpeg), offer reinstall only
     elif _ver_ge(ver, latest):
         avail = "current"             # up to date
     else:
@@ -1577,7 +1581,7 @@ def job_files(job_id: str, limit: int = Query(60, le=300)):
         base_r = base.resolve()
     except Exception:
         return {"files": [], "count": 0, "root": str(base)}
-    # Don't scan the whole output tree — only a per-job subfolder.
+    # Don't scan the whole output tree, only a per-job subfolder.
     if (not base.is_dir() or not _under_output(base) or base_r in _output_roots()):
         return {"files": [], "count": 0, "root": str(base)}
 
@@ -1691,29 +1695,34 @@ async def delete_job(job_id: str):
 @api.delete("/jobs/{job_id}/files")
 async def delete_job_files(job_id: str):
     """Delete the files this job downloaded (its dest folder), then drop the
-    history entry and log. Irreversible — the UI confirms first."""
+    history entry and log. Irreversible; the UI confirms first."""
     row = _job_row(job_id)
     if not row:
         raise HTTPException(404, "Job not found")
     if row["status"] == "running":
         await manager.cancel(job_id)
 
-    base = Path(row.get("dest_dir") or "")
+    raw = (row.get("dest_dir") or "").strip()
     removed = 0
-    try:
-        base_r = base.resolve()
-    except Exception:
-        base_r = None
-    if base_r and base.is_dir() and _under_output(base) and base_r not in _output_roots():
-        removed = sum(1 for p in base.rglob("*") if p.is_file())
-        shutil.rmtree(base, ignore_errors=True)
+    if raw:
+        base = Path(raw)
+        try:
+            base_r = base.resolve()
+        except Exception:
+            base_r = None
+        # Must be a real per-job subfolder under a download root, never the root
+        # itself and never something outside it.
+        if (base_r and base.is_dir() and base_r.is_absolute()
+                and _under_output(base) and base_r not in _output_roots()):
+            removed = sum(1 for p in base.rglob("*") if p.is_file())
+            shutil.rmtree(base, ignore_errors=True)
 
     db_run("DELETE FROM jobs WHERE id=?", (job_id,))
     try:
         Path(row.get("log_path") or "").unlink(missing_ok=True)
     except Exception:
         pass
-    return {"ok": True, "removed": removed, "dir": str(base)}
+    return {"ok": True, "removed": removed, "dir": raw}
 
 
 @api.delete("/jobs")
