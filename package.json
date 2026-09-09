@@ -1,0 +1,71 @@
+{
+  "name": "grabbr",
+  "version": "1.0.0",
+  "description": "Grabbr - Desktop GUI for gallery-dl",
+  "author": "Mohammed Yousef Gumilar",
+  "license": "MIT",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "concurrently \"cd frontend && yarn start\" \"wait-on http://localhost:3000 && electron .\"",
+    "start:prod": "electron .",
+    "build": "cd frontend && yarn build",
+    "build:backend": "cd backend && pyinstaller grabbr_backend.spec --clean",
+    "dist": "yarn build && electron-builder --win --x64",
+    "dist:mac": "yarn build && electron-builder --mac",
+    "dist:linux": "yarn build && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.grabbr.app",
+    "productName": "Grabbr",
+    "copyright": "Copyright (C) 2026 Grabbr",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "frontend/build/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/dist/grabbr-backend.exe",
+        "to": "backend/grabbr-backend.exe"
+      },
+      {
+        "from": "bin/",
+        "to": "bin/",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "electron/assets/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "artifactName": "Grabbr-Setup-${version}.exe",
+      "signtoolOptions": {
+        "publisherName": "Grabbr"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "runAfterFinish": true
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "electron/assets/icon.png"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "wait-on": "^8.0.0",
+    "cross-env": "^7.0.3"
+  }
+}

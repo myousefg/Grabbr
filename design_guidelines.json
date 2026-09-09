@@ -1,0 +1,110 @@
+{
+  "theme_strategy": {
+    "theme": "light_and_dark",
+    "archetype": "4 (Swiss & High-Contrast)",
+    "vibe": "Objective, functional, developer-tool, minimalist professional. A calm control room for downloads. 'Paste a URL, Grabbr does the rest.'"
+  },
+  "typography": {
+    "heading_font": "Work Sans",
+    "body_font": "IBM Plex Sans",
+    "mono_font": "IBM Plex Mono",
+    "setup": "Import via Google Fonts in index.css",
+    "rules": [
+      "Do not use Inter, Roboto, or Open Sans.",
+      "Headings (Size > 32px): MUST use tracking-tight.",
+      "Overlines / Labels: MUST be Uppercase + Tiny + Wide Spacing (tracking-[0.2em]).",
+      "Line Height: leading-none for headers, leading-relaxed for body.",
+      "File paths, rules, and logs MUST use mono_font for readability and technical aesthetic.",
+      "Hierarchy Gap Rule: The jump between a heading and its subheading must not exceed 2 Tailwind steps."
+    ]
+  },
+  "color_palette": {
+    "light": {
+      "background": "0 0% 98%",
+      "foreground": "0 0% 4%",
+      "primary": "0 0% 9%",
+      "primary_foreground": "0 0% 98%",
+      "muted": "0 0% 92%",
+      "muted_foreground": "0 0% 45%",
+      "border": "0 0% 88%",
+      "card": "0 0% 100%",
+      "card_foreground": "0 0% 4%",
+      "destructive": "0 84% 60%",
+      "destructive_foreground": "0 0% 98%",
+      "ring": "0 0% 9%"
+    },
+    "dark": {
+      "background": "0 0% 4%",
+      "foreground": "0 0% 98%",
+      "primary": "0 0% 98%",
+      "primary_foreground": "0 0% 9%",
+      "muted": "0 0% 12%",
+      "muted_foreground": "0 0% 60%",
+      "border": "0 0% 15%",
+      "card": "0 0% 4%",
+      "card_foreground": "0 0% 98%",
+      "destructive": "0 62.8% 30.6%",
+      "destructive_foreground": "0 0% 98%",
+      "ring": "0 0% 83.1%"
+    },
+    "rules": [
+      "Color is Function Only: 95% of the UI should be monochrome. Color exists only to guide action.",
+      "Hover states MUST explicitly change text color and background to maintain contrast.",
+      "Destructive actions (Delete Rule, Undo) MUST use the destructive red."
+    ]
+  },
+  "layout_and_spacing": {
+    "spacing_system": "Generous Spacing: p-4, p-6, p-8. Use ample white space to reduce cognitive load.",
+    "grid_mode": "MODE B: THE 'CONTROL ROOM' GRID",
+    "rules": [
+      "Base Grid: grid-cols-1 md:grid-cols-3 lg:grid-cols-4. Gap Strategy: Tight (gap-4 or gap-6).",
+      "Every pixel utilized. Use h-full on children.",
+      "Containers with borders MUST have internal padding (e.g., p-6) to prevent text collision.",
+      "Use Optical Alignment for icons within buttons or lists."
+    ]
+  },
+  "surface_strategies": {
+    "cards_and_widgets": "GRID BORDERS (The 'Technical' Look): Expose the skeleton. border-collapse style layout. Subtly rounded (max 8px). Flat solid backgrounds, no drop shadows.",
+    "headers": "Solid Background with a hard bottom border. If content scrolls under it, use Crystal Glassmorphism (backdrop-blur-xl bg-background/80 with 1px delicate inner stroke).",
+    "interactive_elements": "Sharp inner contrasts. Flat solid, 1px subtle border."
+  },
+  "motion_and_interactions": {
+    "rules": [
+      "Animations: Minimalist — use micro-interactions for feedback.",
+      "Hover states: Subtle background darkening or lightening.",
+      "Transitions: Use specific properties (e.g., transition-colors duration-200 ease-in-out).",
+      "Respect prefers-reduced-motion."
+    ]
+  },
+  "components_and_libraries": {
+    "ui_library": "shadcn/ui (JavaScript files, not TSX)",
+    "icons": "lucide-react",
+    "rules": [
+      "Ensure all Shadcn components are generated/adapted for .js/.jsx.",
+      "Use Shadcn components for tables, switches (On/Off toggle), inputs, forms, tabs, and dialogs.",
+      "Do NOT overuse the generic Card component. Go cardless, rectangular, and dense.",
+      "Use Sonner for toast notifications (rule applied, file organized, etc.)."
+    ]
+  },
+  "testing_requirements": [
+    "All interactive and key informational elements MUST include a `data-testid` attribute (e.g., data-testid='add-rule-button', data-testid='monitoring-toggle')."
+  ],
+  "media_assets": {
+    "images": [
+      {
+        "category": "empty_state_background",
+        "url": "https://static.prod-images.emergentagent.com/jobs/7a3fdf34-63f5-4314-87a2-30271ad1f69a/images/442e12a4f7fdde354219a7952325b37109dcd28a084358f063e8d006f87275d7.png",
+        "description": "Minimalist geometric grid pattern on pure white. Use for empty state backgrounds or 'no rules' illustrations. In dark mode, apply `invert` or `opacity` filter via CSS."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Design files as .jsx or .js, as TypeScript is not used.",
+    "Fixed left sidebar layout: Dashboard, History, Settings.",
+    "Implement standard System/Light/Dark Theme Switcher.",
+    "Main views: Dashboard (URL input, live queue with per-job progress + expandable log console), History (finished downloads, search + status filter, re-download / open folder / view log), Settings (output, engine, cookies, appearance).",
+    "Implement 'Preview' as a Dialog: a gallery-dl --simulate dry run listing the files that WOULD be downloaded, with a 'Download this' confirm.",
+    "URLs, file paths, gallery-dl format strings, and the log console MUST use mono_font.",
+    "Adhere strictly to the 'Swiss & High-Contrast' archetype: monochrome, high precision, technical aesthetic. Colour is function only - emerald for success, destructive red for errors."
+  ]
+}

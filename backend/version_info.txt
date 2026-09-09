@@ -1,0 +1,36 @@
+# UTF-8
+#
+# Grabbr backend version resource file.
+# Embedded into grabbr-backend.exe by PyInstaller.
+# Format: (major, minor, patch, build)  e.g. 1.0.0 -> (1, 0, 0, 0)
+
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(1, 0, 0, 0),
+    prodvers=(1, 0, 0, 0),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        u'040904B0',
+        [
+          StringStruct(u'CompanyName',      u'Grabbr'),
+          StringStruct(u'FileDescription',  u'Grabbr Backend Service'),
+          StringStruct(u'FileVersion',      u'1.0.0.0'),
+          StringStruct(u'InternalName',     u'grabbr-backend'),
+          StringStruct(u'LegalCopyright',   u'Copyright \xa9 2026 Grabbr'),
+          StringStruct(u'OriginalFilename', u'grabbr-backend.exe'),
+          StringStruct(u'ProductName',      u'Grabbr'),
+          StringStruct(u'ProductVersion',   u'1.0.0'),
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct(u'Translation', [0x0409, 1200])])
+  ]
+)
