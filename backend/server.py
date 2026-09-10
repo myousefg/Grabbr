@@ -99,8 +99,27 @@ def sub_env() -> dict:
     return env
 
 
-DEFAULT_OUTPUT_DIR = str(Path.home() / "Grabbr")
+# Where downloads land by default. Electron passes the real Downloads path via
+# GRABBR_DEFAULT_OUTPUT; the fallback is used only for a bare `python server.py`.
+DEFAULT_OUTPUT_DIR = (
+    os.environ.get("GRABBR_DEFAULT_OUTPUT")
+    or str(Path.home() / "Downloads" / "Grabbr")
+)
 APP_VERSION = "1.0.0"                                # single source at runtime
+
+
+def _abs_output(p: Optional[str]) -> str:
+    """An absolute download root. A blank or relative setting must never make
+    gallery-dl write into the process's working directory (the user's home
+    folder when launched from the Start menu)."""
+    p = (p or "").strip()
+    try:
+        path = Path(p).expanduser() if p else Path(DEFAULT_OUTPUT_DIR)
+        if not path.is_absolute():
+            path = Path(DEFAULT_OUTPUT_DIR)
+        return str(path)
+    except Exception:
+        return DEFAULT_OUTPUT_DIR
 
 # Browsers gallery-dl can read cookies from. "operagx" is synthetic; we map it
 # to opera + the Opera GX profile path in build_gdl_config().
@@ -404,7 +423,7 @@ def get_sites() -> List[dict]:
 
 # ── Hermetic gallery-dl config ───────────────────────────────────────────────
 def build_gdl_config(settings: dict, sites: List[dict]) -> dict:
-    ex: Dict = {"base-directory": settings.get("output_dir") or DEFAULT_OUTPUT_DIR}
+    ex: Dict = {"base-directory": _abs_output(settings.get("output_dir"))}
 
     if int(settings.get("skip_existing", 1)):
         ex["archive"] = str(ARCHIVE_PATH)
@@ -701,7 +720,11 @@ class JobManager:
             job_opts = json.loads(row.get("options_json") or "{}")
         except Exception:
             job_opts = {}
-        dest = settings.get("output_dir") or DEFAULT_OUTPUT_DIR
+        dest = _abs_output(settings.get("output_dir"))
+        try:
+            Path(dest).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
         argv = build_argv(url, settings, job_opts)
         log_path = str(JOB_LOG_DIR / f"{job_id}.log")
 
@@ -719,7 +742,7 @@ class JobManager:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-                creationflags=creationflags, env=sub_env(),
+                creationflags=creationflags, env=sub_env(), cwd=dest,
             )
         except FileNotFoundError:
             db_run(
@@ -840,7 +863,7 @@ async def run_preview(url: str, options: Optional[dict] = None,
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=sub_env(), creationflags=CREATE_NO_WINDOW,
+            env=sub_env(), creationflags=CREATE_NO_WINDOW, cwd=str(BASE_DIR),
         )
     except FileNotFoundError:
         raise HTTPException(500, f"gallery-dl binary not found at: {gdl_bin()}")
@@ -917,7 +940,7 @@ async def _oauth_worker(site: str, run: OAuthRun, target: str):
         proc = await asyncio.create_subprocess_exec(
             gdl_bin(), "--no-colors", target,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=sub_env(), creationflags=CREATE_NO_WINDOW,
+            env=sub_env(), creationflags=CREATE_NO_WINDOW, cwd=str(BASE_DIR),
         )
     except FileNotFoundError:
         run.done, run.error = True, f"gallery-dl not found at {gdl_bin()}"
@@ -1321,7 +1344,7 @@ def env_info():
         "cache": str(CACHE_PATH),
         "db": str(DB_PATH),
         "logs_dir": str(LOG_DIR),
-        "output_dir": get_settings().get("output_dir") or DEFAULT_OUTPUT_DIR,
+        "output_dir": _abs_output(get_settings().get("output_dir")),
     }
 
 
@@ -1553,7 +1576,7 @@ _VID_EXT = {".mp4", ".webm", ".mkv", ".mov", ".m4v", ".gifv"}
 
 
 def _output_roots() -> List[Path]:
-    roots = [Path(get_settings().get("output_dir") or DEFAULT_OUTPUT_DIR)]
+    roots = [Path(_abs_output(get_settings().get("output_dir")))]
     return [r.resolve() for r in roots if str(r)]
 
 
@@ -1779,7 +1802,7 @@ async def verify_site(site: str, body: VerifyIn):
     try:
         proc = await asyncio.create_subprocess_exec(
             *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=sub_env(), creationflags=CREATE_NO_WINDOW,
+            env=sub_env(), creationflags=CREATE_NO_WINDOW, cwd=str(BASE_DIR),
         )
         out_b, _ = await asyncio.wait_for(proc.communicate(), timeout=45)
     except asyncio.TimeoutError:

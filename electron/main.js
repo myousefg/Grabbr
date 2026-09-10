@@ -64,7 +64,12 @@ const WINDOW_ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
 function startBackend() {
   return new Promise((resolve, reject) => {
     const gdl = resolveGdlBin();
-    const env = { ...process.env, GRABBR_PORT: String(BACKEND_PORT) };
+    const env = {
+      ...process.env,
+      GRABBR_PORT: String(BACKEND_PORT),
+      // Default download folder for a first run, before the user picks one.
+      GRABBR_DEFAULT_OUTPUT: path.join(app.getPath('downloads'), 'Grabbr'),
+    };
     if (gdl) env.GRABBR_GDL_BIN = gdl;
     console.log('[grabbr] gallery-dl:', gdl || '(falling back to PATH)');
 
