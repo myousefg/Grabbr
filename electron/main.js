@@ -215,7 +215,7 @@ ipcMain.handle('get-paths', async () => ({
   downloads: app.getPath('downloads'),
   documents: app.getPath('documents'),
   desktop:   app.getPath('desktop'),
-  grabbr:    path.join(app.getPath('home'), 'Grabbr'),
+  grabbr:    path.join(app.getPath('downloads'), 'Grabbr'),
 }));
 
 ipcMain.handle('show-notification', (_, { title, body }) => {
