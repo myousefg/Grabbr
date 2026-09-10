@@ -1,5 +1,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Passed by main via webPreferences.additionalArguments (process.env does not
+// cross into the renderer process); fall back to env for the dev stack.
+const tokenArg = (process.argv.find(a => a.startsWith('--grabbr-token=')) || '');
+const API_TOKEN = tokenArg.slice('--grabbr-token='.length) || process.env.GRABBR_TOKEN || '';
+
 contextBridge.exposeInMainWorld('electronAPI', {
   selectFolder: (opts) => ipcRenderer.invoke('select-folder', opts),
   selectFile:   (opts) => ipcRenderer.invoke('select-file', opts),
@@ -10,6 +15,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTrayBadge: (count) => ipcRenderer.invoke('set-tray-badge', count),
   setAutoStart: (enable) => ipcRenderer.invoke('set-auto-start', enable),
   getAutoStart: ()     => ipcRenderer.invoke('get-auto-start'),
-  apiToken: process.env.GRABBR_TOKEN || '',
+  apiToken: API_TOKEN,
   isElectron: true,
 });

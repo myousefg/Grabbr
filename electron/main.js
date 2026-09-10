@@ -143,6 +143,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // process.env set in main does NOT reach the renderer's process, so hand
+      // the API token to the preload through argv instead.
+      additionalArguments: [`--grabbr-token=${API_TOKEN}`],
     },
   });
 
