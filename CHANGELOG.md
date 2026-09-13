@@ -6,6 +6,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## [1.1.0] - 2026-09-13
 
 ### Added
+- In-app auto-update: Settings, About checks GitHub for a newer Grabbr release (silent check on
+  startup, manual "Check for updates" otherwise) and can download and install it without leaving
+  the app, the same way the gallery-dl/FFmpeg/yt-dlp tools update
 - Preview: pick exactly which files to download from the resolved list, not just all-or-nothing
 - Settings: "Default limit" (moves the per-download range/limit out of the Dashboard into a
   persistent default), "Clear cache" (wipes generated thumbnails and gallery-dl's cache),
