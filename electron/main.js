@@ -13,6 +13,10 @@ const http = require('http');
 const API_TOKEN = crypto.randomBytes(24).toString('hex');
 process.env.GRABBR_TOKEN = API_TOKEN; // inherited by the renderer + backend
 
+// Without this, Windows toasts show as "electron.app.Grabbr" (Electron's
+// synthesized fallback ID) instead of the app name.
+app.setAppUserModelId('Grabbr');
+
 // ── Single instance lock ─────────────────────────────────────────────────────
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {

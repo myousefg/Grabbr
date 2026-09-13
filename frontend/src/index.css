@@ -82,12 +82,18 @@
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', sans-serif;
+    user-select: none;
   }
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', sans-serif;
   }
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', 'Consolas', monospace, monospace;
+  }
+  /* App chrome (labels, buttons, nav) stays non-selectable so it feels like a
+     desktop app; anything the user would actually want to copy stays text. */
+  input, textarea, code, pre, [contenteditable="true"] {
+    user-select: text;
   }
 }
 

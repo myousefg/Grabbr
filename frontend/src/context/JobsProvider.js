@@ -2,6 +2,7 @@ import { createContext, useContext, useCallback, useEffect, useRef, useState } f
 import { toast } from 'sonner';
 import { jobsApi, WS_URL } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
+import { useSettings } from '@/context/SettingsProvider';
 
 const JobsContext = createContext(null);
 
@@ -9,22 +10,67 @@ const ACTIVE = new Set(['queued', 'running']);
 const LOG_CAP = 250;
 const WS_MIN_DELAY = 1000;
 const WS_MAX_DELAY = 30000;
+const LINGER_MS = 5000; // how long a just-finished job stays in "Queue & Active"
 
 function notify(title, body) {
   if (isElectron && window.electronAPI.notify) window.electronAPI.notify(title, body);
 }
 
 export function JobsProvider({ children }) {
+  const { settings } = useSettings();
+  const notifyEnabled = settings?.notifications_enabled ?? true;
+  const notifyEnabledRef = useRef(notifyEnabled);
+  notifyEnabledRef.current = notifyEnabled;
+
   const [jobs, setJobs] = useState({});          // id -> job
   const [logs, setLogs] = useState({});          // id -> [{kind,text}]
   const [oauth, setOauth] = useState({});        // site -> {url,done,ok,keys,error,lines}
   const [tools, setTools] = useState({});        // name -> {status,pct,error}
   const [connected, setConnected] = useState(false);
+  const [lingering, setLingering] = useState({}); // id -> true (just-finished, still shown in Queue & Active)
 
   const wsRef = useRef(null);
   const retryRef = useRef(null);
   const attemptRef = useRef(0);                  // WS reconnect backoff counter
   const prevStatusRef = useRef(null);            // id -> last-seen status (null = not primed yet)
+  const openJobsRef = useRef(new Set());         // ids whose card is expanded; pauses the linger timer
+  const lingerTimersRef = useRef({});            // id -> timeout handle
+
+  const clearLingerTimer = useCallback((id) => {
+    clearTimeout(lingerTimersRef.current[id]);
+    delete lingerTimersRef.current[id];
+  }, []);
+
+  // Starts (or restarts) the countdown that drops a finished job out of
+  // "Queue & Active". Skipped while the job's log panel is open, so checking
+  // logs on a single quick download doesn't race the job disappearing first.
+  const scheduleLingerExpiry = useCallback((id) => {
+    clearLingerTimer(id);
+    if (openJobsRef.current.has(id)) return;
+    lingerTimersRef.current[id] = setTimeout(() => {
+      delete lingerTimersRef.current[id];
+      setLingering(prev => {
+        if (!(id in prev)) return prev;
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }, LINGER_MS);
+  }, [clearLingerTimer]);
+
+  const setJobOpen = useCallback((id, isOpen) => {
+    if (isOpen) {
+      openJobsRef.current.add(id);
+      clearLingerTimer(id);
+    } else {
+      openJobsRef.current.delete(id);
+      scheduleLingerExpiry(id);
+    }
+  }, [clearLingerTimer, scheduleLingerExpiry]);
+
+  useEffect(() => () => {
+    Object.values(lingerTimersRef.current).forEach(clearTimeout);
+  }, []);
 
   const upsert = useCallback((job) => {
     if (!job || !job.id) return;
@@ -40,33 +86,48 @@ export function JobsProvider({ children }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  // ── Desktop notifications on terminal transitions (side-effect free upsert) ──
+  // ── Terminal-transition side effects: desktop notifications + the "Queue &
+  // Active" linger window ──────────────────────────────────────────────────
+  // Only jobs that transition in THIS batch count toward the notify summary
+  // below; counting every done/error job ever loaded (including old History
+  // entries) made a bogus "Queue finished" toast fire alongside almost every
+  // single completed download.
   useEffect(() => {
     const seen = prevStatusRef.current;
     const now = {};
-    let anyTerminal = false;
+    const justFinished = [];
     for (const j of Object.values(jobs)) now[j.id] = j.status;
 
     if (seen) {
       for (const j of Object.values(jobs)) {
         const was = seen[j.id];
-        if (was && ACTIVE.has(was) && !ACTIVE.has(j.status)) {
-          anyTerminal = true;
+        if (was && ACTIVE.has(was) && !ACTIVE.has(j.status)) justFinished.push(j);
+      }
+      if (justFinished.length) {
+        setLingering(prev => {
+          const next = { ...prev };
+          for (const j of justFinished) next[j.id] = true;
+          return next;
+        });
+        for (const j of justFinished) scheduleLingerExpiry(j.id);
+      }
+      if (notifyEnabledRef.current) {
+        if (justFinished.length === 1) {
+          const j = justFinished[0];
           if (j.status === 'error') notify('Download failed', j.url);
           else if (j.status === 'done') {
             const n = j.files_ok || 0;
             notify(`Downloaded ${n} file${n === 1 ? '' : 's'}`, j.url);
           }
+        } else if (justFinished.length > 1) {
+          const done = justFinished.filter(j => j.status === 'done').length;
+          const failed = justFinished.filter(j => j.status === 'error').length;
+          notify('Queue finished', `${done} done${failed ? `, ${failed} failed` : ''}`);
         }
-      }
-      if (anyTerminal && !Object.values(jobs).some(j => ACTIVE.has(j.status))) {
-        const done = Object.values(jobs).filter(j => j.status === 'done').length;
-        const failed = Object.values(jobs).filter(j => j.status === 'error').length;
-        if (done + failed > 1) notify('Queue finished', `${done} done${failed ? `, ${failed} failed` : ''}`);
       }
     }
     prevStatusRef.current = now;
-  }, [jobs]);
+  }, [jobs, scheduleLingerExpiry]);
 
   // ── WebSocket with exponential-backoff reconnect ─────────────────────────────
   useEffect(() => {
@@ -145,7 +206,10 @@ export function JobsProvider({ children }) {
   const dropLocal = useCallback((id) => {
     setJobs(prev => { const n = { ...prev }; delete n[id]; return n; });
     setLogs(prev => { const n = { ...prev }; delete n[id]; return n; });
-  }, []);
+    clearLingerTimer(id);
+    openJobsRef.current.delete(id);
+    setLingering(prev => { if (!(id in prev)) return prev; const n = { ...prev }; delete n[id]; return n; });
+  }, [clearLingerTimer]);
 
   const cancel = useCallback(async (id) => {
     try { await jobsApi.cancel(id); }
@@ -164,9 +228,17 @@ export function JobsProvider({ children }) {
   }, [dropLocal]);
 
   const deleteFiles = useCallback(async (id) => {
-    try { return await jobsApi.deleteFiles(id); }
-    catch (e) { if (e?.response?.status !== 404) { toast.error('Could not delete files'); throw e; } }
-    finally { dropLocal(id); }
+    try {
+      const r = await jobsApi.deleteFiles(id);
+      dropLocal(id);
+      return r;
+    } catch (e) {
+      // 404: already gone, reconcile locally. 409: the backend refused (e.g.
+      // a flat/shared folder) and the history entry is still there - don't
+      // drop it locally or the UI would lie about what actually happened.
+      if (e?.response?.status === 404) dropLocal(id);
+      throw e;
+    }
   }, [dropLocal]);
 
   const clearFinished = useCallback(async () => {
@@ -182,11 +254,15 @@ export function JobsProvider({ children }) {
   const list = Object.values(jobs).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
   const active = list.filter(j => ACTIVE.has(j.status));
   const finished = list.filter(j => !ACTIVE.has(j.status));
+  // What "Queue & Active" renders: truly active jobs plus ones that just
+  // finished, so completing a single download doesn't yank its card away
+  // before there's a chance to check the log.
+  const queueView = list.filter(j => ACTIVE.has(j.status) || lingering[j.id]);
 
   return (
     <JobsContext.Provider value={{
-      jobs, list, active, finished, logs, connected,
-      oauth, clearOauth, tools,
+      jobs, list, active, finished, queueView, logs, connected,
+      oauth, clearOauth, tools, setJobOpen,
       refresh, createJobs, cancel, retry, remove, deleteFiles, clearFinished,
     }}>
       {children}

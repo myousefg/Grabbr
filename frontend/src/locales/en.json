@@ -4,7 +4,7 @@
     "history": "HISTORY",
     "sites": "SITES",
     "settings": "SETTINGS",
-    "tagline": "IMAGE DOWNLOADER",
+    "tagline": "MEDIA DOWNLOADER",
     "connected": "Connected",
     "offline": "Offline"
   },
@@ -17,11 +17,6 @@
     "paste": "Paste",
     "pasteFailed": "Nothing to paste",
     "modeLabel": "Mode",
-    "limitLabel": "Limit",
-    "rangePlaceholder": "all",
-    "rangeDesc": "How many files to grab. A number means the newest N; or a range like 8-20 or 1:100:2. Blank = everything.",
-    "noArchive": "Ignore archive",
-    "noArchiveHint": "Skips the download-archive check for this run, so files you deleted get pulled again. Files still on disk are still skipped.",
     "preview": "Preview",
     "previewing": "Checking…",
     "mode": {
@@ -34,6 +29,7 @@
       "scan": "Opens the page, finds links to supported sites, and downloads from each one (gallery-dl r:)."
     },
     "modeMismatch": "This site has a dedicated extractor. Use Auto to get the posts. Whole page / Scan only grab page chrome (logos, icons) because posts load via JavaScript.",
+    "invalidUrl": "Please paste a working link (starting with http:// or https://).",
     "queue": "Queue & Active",
     "noActive": "Nothing downloading. Paste a URL above to start.",
     "recent": "Recently finished",
@@ -72,6 +68,11 @@
     "needsAuth": "This site needs a login. Set up cookies",
     "errors": "Extractor messages",
     "downloadThis": "Download this",
+    "downloadSelected": "Download {{n}} selected",
+    "selectAll": "Select all",
+    "selectNone": "Select none",
+    "selected": "{{n}} of {{count}} selected",
+    "retry": "Try again",
     "close": "Close"
   },
   "history": {
@@ -99,18 +100,16 @@
     "deleteConfirm": "Delete downloaded files?",
     "deleteConfirmDesc": "Permanently erases this job's download folder from disk, then removes the history entry. This cannot be undone.",
     "deleted": "{{count}} file(s) deleted",
-    "removeHint": "Remove and Clear delete only the history entry and that job's log. Delete files also erases the download folder from disk."
+    "deleteFailed": "Could not delete files",
+    "sharedFolderNote": "These files share the main download folder with other downloads (Folder structure is set to \"One flat folder\"), so they can't be deleted individually. Use Remove to clear this entry, or delete files from the folder yourself."
   },
   "settings": {
     "title": "Settings",
     "subtitle": "Engine, appearance, tools, and files. Changes save automatically.",
     "output": "OUTPUT",
     "outputDir": "Download folder",
-    "outputDirDesc": "Base directory for all downloads. gallery-dl still creates a per-site subfolder inside it.",
     "filenameFormat": "Filename format",
-    "filenameFormatDesc": "gallery-dl format string. Leave blank for the site default.",
     "folderStructure": "Folder structure",
-    "folderStructureDesc": "How downloads are foldered inside the download folder.",
     "folderCustom": "Custom template",
     "folderCustomDesc": "Slash-separated gallery-dl fields, e.g. {category}/{user[name]}. Use the Insert field button.",
     "tokens": {
@@ -133,6 +132,9 @@
     },
     "browse": "Browse",
     "engine": "ENGINE",
+    "defaultLimit": "Default limit",
+    "defaultLimitDesc": "How many files to grab per download. A number means the newest N; or a range like 8-20 or 1:100:2. Blank = everything.",
+    "defaultLimitPlaceholder": "all",
     "maxConcurrent": "Parallel downloads",
     "maxConcurrentDesc": "How many URLs download at once. Set 0 to pause the queue.",
     "rateLimit": "Rate limit",
@@ -144,20 +146,18 @@
     "retries": "Retries",
     "retriesDesc": "Attempts per file before giving up.",
     "skipExisting": "Skip already-downloaded",
-    "skipExistingDesc": "Keep a download archive so re-running a URL only grabs new files.",
+    "skipExistingDesc": "Remember what you've downloaded so re-running a URL only grabs new files, even ones you later deleted. Turn off to re-check and re-grab everything.",
     "writeMetadata": "Write metadata JSON",
     "writeMetadataDesc": "Save a .json sidecar with post info next to each file.",
     "cookies": "COOKIES & AUTH",
     "cookiesNone": "Do not use a browser",
     "cookiesFolder": "Cookie folder",
-    "cookiesFolderDesc": "Any cookies.txt files placed here are merged and applied to the matching site automatically, by domain.",
     "cookiesFolderRescan": "Rescan folder",
     "cookiesFolderEmpty": "No cookies.txt files yet. Export one from your browser:",
     "cookiesFolderDetected": "{{count}} file(s) detected, covering:",
     "cookiesFolderNoDomains": "No domains were found in these files.",
     "cookiesFolderInfo": "Any cookies.txt files here are merged and applied to the matching site by domain.",
     "cookiesBrowserPick": "Browser",
-    "cookiesBrowserDesc": "Grabbr reads cookies directly from the selected browser's profile. Used for any site without its own cookies.txt in the folder below.",
     "browserRunning": "{{name}} is running. Chromium browsers lock their cookie database while open; quit {{name}} for Grabbr to read it.",
     "cookiesFileHelpLink": "Get \"Get cookies.txt LOCALLY\"",
     "appearance": "APPEARANCE",
@@ -168,8 +168,11 @@
     "language": "Language",
     "startWithWindows": "Start with Windows",
     "startWithWindowsDesc": "Launch Grabbr on login, minimized to the tray.",
+    "notifications": "Notifications",
+    "notificationsDesc": "Show a desktop notification when a download finishes or fails.",
+    "advanced": "Advanced",
     "tools": "TOOLS",
-    "toolsDesc": "Optional helpers. gallery-dl is the downloader; FFmpeg converts Pixiv ugoira to video; yt-dlp handles HLS/DASH video. Grabbr keeps its own copies in the data folder.",
+    "updateAll": "Update all",
     "toolInstall": "Install",
     "toolUpdate": "Update",
     "toolReinstall": "Reinstall",
@@ -180,12 +183,15 @@
     "tool_downloading": "Downloading",
     "tool_installing": "Installing",
     "files": "FILES",
-    "filesDesc": "Everything Grabbr stores lives in one data folder. Downloads are separate so you can put them on another drive.",
     "viewConfig": "View generated gallery-dl.json",
     "hideConfig": "Hide config",
     "dataFolder": "Data folder",
     "dataFolderDesc": "Database, config, logs, download archive, gallery-dl cache, and downloaded tools. Set the GRABBR_DATA env var to move it.",
     "downloadsFolder": "Downloads folder",
+    "clearCache": "Clear cache",
+    "clearCacheDesc": "Removes generated thumbnails and gallery-dl's internal cache. Nothing you downloaded is touched.",
+    "cacheCleared": "Cache cleared",
+    "clearCacheFailed": "Could not clear cache",
     "openFolder": "Open in Explorer",
     "save": "Save Settings",
     "saving": "Saving…",
@@ -262,7 +268,7 @@
     },
     "dashboard": {
       "title": "Dashboard",
-      "body": "Paste one URL or many, one per line. Pick a mode (Auto fits ~350 sites), optionally set a Limit, then Download. The download folder and file naming sit right below the queue."
+      "body": "Paste one URL or many, one per line. Pick a mode (Auto fits ~350 sites), then Download. The download folder and file naming sit right below the queue."
     },
     "sites": {
       "title": "Sites: private accounts",
@@ -270,7 +276,7 @@
     },
     "tools": {
       "title": "Tools & Settings",
-      "body": "For video, install FFmpeg and yt-dlp from Settings, Tools (one click each). Settings also holds the proxy, parallel-download count, theme, language, and the data folder location."
+      "body": "For video, install FFmpeg and yt-dlp from Settings, Tools (one click each). Settings also holds the default download limit, proxy, parallel-download count, theme, language, and the data folder location."
     },
     "history": {
       "title": "History",

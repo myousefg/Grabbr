@@ -48,6 +48,7 @@ export const envApi = {
   cookies:  () => api.get('/cookies').then(r => r.data),
   importCookies: (body) => api.post('/cookies/import', body).then(r => r.data),
   deleteCookieFile: (name) => api.delete(`/cookies/${encodeURIComponent(name)}`).then(r => r.data),
+  clearCache: () => api.post('/cache/clear').then(r => r.data),
 };
 
 export const toolsApi = {

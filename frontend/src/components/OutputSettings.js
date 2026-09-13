@@ -69,7 +69,7 @@ export default function OutputSettings() {
 
   return (
     <Section label={t('settings.output')}>
-      <Row title={t('settings.outputDir')} desc={t('settings.outputDirDesc')}>
+      <Row title={t('settings.outputDir')}>
         <Input
           value={s.output_dir || ''} onChange={e => update({ output_dir: e.target.value })}
           className="w-64 font-mono text-xs" data-testid="output-dir"
@@ -81,7 +81,7 @@ export default function OutputSettings() {
         )}
       </Row>
 
-      <Row title={t('settings.folderStructure')} desc={t('settings.folderStructureDesc')}>
+      <Row title={t('settings.folderStructure')}>
         <Select value={s.folder_structure || 'site_user'} onValueChange={v => update({ folder_structure: v })}>
           <SelectTrigger className="w-56" data-testid="folder-structure"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -100,7 +100,7 @@ export default function OutputSettings() {
         </Row>
       )}
 
-      <Row title={t('settings.filenameFormat')} desc={t('settings.filenameFormatDesc')}>
+      <Row title={t('settings.filenameFormat')}>
         <Input
           value={s.filename_format || ''} onChange={e => update({ filename_format: e.target.value })}
           placeholder="{category}_{id}.{extension}" className="w-64 font-mono text-xs"

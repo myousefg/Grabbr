@@ -26,7 +26,7 @@ export default function CookieDefaults({ browsers = [], ck, onReload }) {
 
   return (
     <Section label={t('settings.cookies')}>
-      <Row title={t('settings.cookiesBrowserPick')} desc={t('settings.cookiesBrowserDesc')}>
+      <Row title={t('settings.cookiesBrowserPick')}>
         <Select value={browser} onValueChange={v => update({ cookies_browser: v })}>
           <SelectTrigger className="w-56" data-testid="cookies-browser"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -46,7 +46,7 @@ export default function CookieDefaults({ browsers = [], ck, onReload }) {
         </div>
       )}
 
-      <Row title={t('settings.cookiesFolder')} desc={t('settings.cookiesFolderDesc')}>
+      <Row title={t('settings.cookiesFolder')}>
         <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[240px] block">
           {ck?.dir || '…'}
         </code>

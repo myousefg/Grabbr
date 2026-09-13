@@ -3,6 +3,38 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.0] - 2026-09-13
+
+### Added
+- Preview: pick exactly which files to download from the resolved list, not just all-or-nothing
+- Settings: "Default limit" (moves the per-download range/limit out of the Dashboard into a
+  persistent default), "Clear cache" (wipes generated thumbnails and gallery-dl's cache),
+  "Update all" (installs/updates every outdated tool in one click), a Notifications on/off toggle
+- Dashboard: rejects non-URL input before queueing instead of silently failing
+- Queue & Active keeps a just-finished job visible for a few seconds (longer while its log is open)
+  so a fast single-file download doesn't disappear before you can check it
+
+### Changed
+- Mode selector moved onto the Download/Preview row; output-folder settings and cookie config rows
+  lost their permanently-visible explainer text in favor of a hover tooltip, and Settings' Engine
+  section groups the rarely-used network options behind an "Advanced" disclosure
+- "Skip already-downloaded" and the old separate "Ignore archive" default merged into one setting;
+  they controlled the same underlying behavior
+- Sidebar tagline is "Media Downloader" (Grabbr also handles video, not just images)
+- Onboarding tour order now matches the sidebar's page order
+- Preview dialog redesigned: per-file-type icons, a cleaner site header, whole-row click to
+  select, and a retry button on failure
+
+### Fixed
+- Desktop notifications no longer fire a bogus extra "Queue finished" summary alongside almost
+  every single completed download
+- Windows notifications are labeled "Grabbr" instead of the fallback "electron.app.Grabbr"
+- History thumbnails could come back empty for downloads that land directly in the download root
+  (e.g. "One flat folder" structure) instead of a per-job subfolder
+- "Delete files" in History could silently drop a history entry without deleting anything when its
+  files shared the main download folder with other jobs; it's now disabled with an explanation in
+  that case instead
+
 ## [Unreleased]
 
 ### Added

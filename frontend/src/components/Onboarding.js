@@ -19,9 +19,9 @@ export function markIntroDone() {
 const STEPS = [
   { key: 'welcome', icon: Sparkles, to: '/' },
   { key: 'dashboard', icon: LayoutDashboard, to: '/' },
+  { key: 'history', icon: HistoryIcon, to: '/history' },
   { key: 'sites', icon: KeyRound, to: '/sites' },
   { key: 'tools', icon: Wrench, to: '/settings' },
-  { key: 'history', icon: HistoryIcon, to: '/history' },
 ];
 
 export default function Onboarding({ open, onClose }) {

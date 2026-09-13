@@ -15,8 +15,10 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
+import { useSettings } from '@/context/SettingsProvider';
 import { jobsApi, thumbUrl } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
 import { useCooldownTick, HINT_KEY } from '@/lib/jobHints';
@@ -24,6 +26,12 @@ import { useCooldownTick, HINT_KEY } from '@/lib/jobHints';
 const DOT = {
   done: 'bg-emerald-500', error: 'bg-destructive', canceled: 'bg-muted-foreground/40',
 };
+
+function samePath(a, b) {
+  if (!a || !b) return false;
+  const norm = (s) => s.replace(/[\\/]+/g, '\\').replace(/\\+$/, '').toLowerCase();
+  return norm(a) === norm(b);
+}
 
 function timeAgo(iso) {
   if (!iso) return '';
@@ -64,11 +72,17 @@ function Thumb({ f }) {
 function HistoryRow({ job }) {
   const { t } = useI18n();
   const { retry, remove, deleteFiles } = useJobs();
+  const { env } = useSettings();
   const [open, setOpen] = useState(false);
   const [log, setLog] = useState(null);
   const [files, setFiles] = useState(null);
   const cooldown = useCooldownTick(job);
   const flagged = job.hint === 'auth' || job.hint === 'cookies_locked' || job.hint === 'rate_limited';
+  // "One flat folder" (or any structure gallery-dl didn't subfolder) puts this
+  // job's files directly in the shared download root; deleting them would
+  // wipe every other job's files too, so the backend refuses and we shouldn't
+  // offer a confirm dialog that promises otherwise.
+  const sharedDest = samePath(job.dest_dir, env?.output_dir);
 
   const toggle = async () => {
     const next = !open;
@@ -143,47 +157,63 @@ function HistoryRow({ job }) {
                 <FolderOpen className="w-3.5 h-3.5 mr-1" /> {t('history.openFolder')}
               </Button>
             )}
-            <Button
-              size="sm" variant="ghost" onClick={() => remove(job.id)}
-              title={t('history.removeHint')}
-            >
+            <Button size="sm" variant="ghost" onClick={() => remove(job.id)}>
               <Trash2 className="w-3.5 h-3.5 mr-1" /> {t('history.remove')}
             </Button>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  size="sm" variant="ghost"
-                  className="text-destructive hover:text-destructive"
-                  title={t('history.deleteConfirmDesc')}
-                >
-                  <FolderX className="w-3.5 h-3.5 mr-1" /> {t('history.delete')}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t('history.deleteConfirm')}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t('history.deleteConfirmDesc')}
-                    {job.dest_dir && (
-                      <span className="block mt-1 font-mono text-[11px] break-all">{job.dest_dir}</span>
-                    )}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={async () => {
-                      try {
-                        const r = await deleteFiles(job.id);
-                        toast.success(t('history.deleted', { count: r?.removed ?? 0 }));
-                      } catch { /* handled in provider */ }
-                    }}
+            {sharedDest ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="text-muted-foreground/50 hover:text-muted-foreground/50 hover:bg-transparent cursor-default"
+                    onClick={() => toast.info(t('history.sharedFolderNote'))}
                   >
-                    {t('common.confirm')}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <FolderX className="w-3.5 h-3.5 mr-1" /> {t('history.delete')}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs text-xs leading-relaxed">
+                  {t('history.sharedFolderNote')}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm" variant="ghost"
+                    className="text-destructive hover:text-destructive"
+                    title={t('history.deleteConfirmDesc')}
+                  >
+                    <FolderX className="w-3.5 h-3.5 mr-1" /> {t('history.delete')}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t('history.deleteConfirm')}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t('history.deleteConfirmDesc')}
+                      {job.dest_dir && (
+                        <span className="block mt-1 font-mono text-[11px] break-all">{job.dest_dir}</span>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        try {
+                          const r = await deleteFiles(job.id);
+                          toast.success(t('history.deleted', { count: r?.removed ?? 0 }));
+                        } catch (e) {
+                          toast.error(e?.response?.data?.detail || t('history.deleteFailed'));
+                        }
+                      }}
+                    >
+                      {t('common.confirm')}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </div>
           {log !== null && (
             <ScrollArea className="h-40 rounded border border-border bg-background">
@@ -261,8 +291,6 @@ export default function History() {
           {rows.map(job => <HistoryRow key={job.id} job={job} />)}
         </div>
       )}
-
-      <p className="text-[11px] text-muted-foreground">{t('history.removeHint')}</p>
     </div>
   );
 }

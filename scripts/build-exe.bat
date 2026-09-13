@@ -12,7 +12,7 @@ setlocal EnableDelayedExpansion
 ::  Non-interactive:  set GRABBR_NOPROMPT=1  (skips the pauses)
 :: ============================================================
 
-set APP_VERSION=1.0.0
+set APP_VERSION=1.1.0
 set PY=python
 where %PY% >nul 2>nul || set PY=py
 

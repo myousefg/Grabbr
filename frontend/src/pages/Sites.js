@@ -45,10 +45,9 @@ function isConfigured(site, row, covered) {
   return false;
 }
 
-function SiteRow({ site, row, ck, onSaved, onCookies }) {
+function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies }) {
   const { t } = useI18n();
   const { oauth, clearOauth } = useJobs();
-  const [open, setOpen] = useState(false);
   const [d, setD] = useState({});
   const [busy, setBusy] = useState(false);
   const [verify, setVerify] = useState(null);
@@ -92,6 +91,7 @@ function SiteRow({ site, row, ck, onSaved, onCookies }) {
       await sitesApi.update(site.id, { cookies_mode: 'folder' }).catch(() => {});
       toast.success(t('sites.cookieUploaded', { domains: (r.domains || []).join(', ') || site.domain }));
       onCookies?.();
+      onCollapse?.();
     } catch (e) {
       toast.error(e?.response?.data?.detail || t('sites.cookieUploadFailed'));
     } finally { setBusy(false); }
@@ -152,7 +152,7 @@ function SiteRow({ site, row, ck, onSaved, onCookies }) {
   return (
     <div className="border border-border rounded-lg" data-testid={`site-${site.id}`}>
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={onToggle}
         className="w-full flex items-center gap-3 p-3.5 text-left hover:bg-accent/50 transition-colors rounded-lg"
       >
         <StateDot configured={configured} />
@@ -326,6 +326,7 @@ export default function Sites() {
   const [rows, setRows] = useState({});
   const [browsers, setBrowsers] = useState([]);
   const [ck, setCk] = useState(null);
+  const [openSite, setOpenSite] = useState(null);
 
   const load = useCallback(() => { sitesApi.list().then(setRows).catch(() => {}); }, []);
   const loadCookies = useCallback(() => {
@@ -357,8 +358,13 @@ export default function Sites() {
           <h2 className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">{group.title}</h2>
           <div className="space-y-2">
             {group.sites.map(site => (
-              <SiteRow key={site.id} site={site} row={rows[site.id]} ck={ck}
-                onSaved={load} onCookies={loadCookies} />
+              <SiteRow
+                key={site.id} site={site} row={rows[site.id]} ck={ck}
+                open={openSite === site.id}
+                onToggle={() => setOpenSite(o => (o === site.id ? null : site.id))}
+                onCollapse={() => setOpenSite(null)}
+                onSaved={load} onCookies={loadCookies}
+              />
             ))}
           </div>
         </section>

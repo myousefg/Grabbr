@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Loader2, X, RotateCcw, Trash2, FolderOpen, Terminal, ChevronDown, KeyRound, Timer,
@@ -30,7 +30,7 @@ const LINE_COLOR = {
 
 export default function JobCard({ job }) {
   const { t } = useI18n();
-  const { logs, cancel, retry, remove } = useJobs();
+  const { logs, cancel, retry, remove, setJobOpen } = useJobs();
   const [open, setOpen] = useState(false);
   const [fullLog, setFullLog] = useState(null);
 
@@ -38,9 +38,14 @@ export default function JobCard({ job }) {
   const active = job.status === 'running' || job.status === 'queued';
   const cooldown = useCooldownTick(job);
 
+  // Tells JobsProvider this card is expanded, so a just-finished job doesn't
+  // vanish out of Queue & Active mid-read.
+  useEffect(() => () => setJobOpen(job.id, false), [job.id, setJobOpen]);
+
   const toggleLog = async () => {
     const next = !open;
     setOpen(next);
+    setJobOpen(job.id, next);
     if (next && !active && fullLog === null) {
       try { setFullLog((await jobsApi.log(job.id)).log || ''); }
       catch { setFullLog(''); }

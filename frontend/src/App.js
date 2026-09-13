@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/context/ThemeProvider';
 import { I18nProvider } from '@/context/I18nProvider';
 import { JobsProvider } from '@/context/JobsProvider';
@@ -45,13 +46,15 @@ export default function App() {
     <ErrorBoundary>
       <I18nProvider>
         <ThemeProvider defaultTheme="system" storageKey="grabbr-theme">
-          <SettingsProvider>
-           <JobsProvider>
-            <HashRouter>
-              <RoutedShell />
-            </HashRouter>
-           </JobsProvider>
-          </SettingsProvider>
+          <TooltipProvider delayDuration={200}>
+            <SettingsProvider>
+             <JobsProvider>
+              <HashRouter>
+                <RoutedShell />
+              </HashRouter>
+             </JobsProvider>
+            </SettingsProvider>
+          </TooltipProvider>
         </ThemeProvider>
       </I18nProvider>
     </ErrorBoundary>

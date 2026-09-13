@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -24,6 +25,7 @@ export default function Settings() {
   const [tools, setTools] = useState({});
   const [showCfg, setShowCfg] = useState(false);
   const [cfg, setCfg] = useState(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const loadTools = () => toolsApi.list().then(setTools).catch(() => {});
   useEffect(() => { loadTools(); }, []);
@@ -32,6 +34,19 @@ export default function Settings() {
   }, [liveTools]);
 
   const installTool = (name) => toolsApi.install(name).catch(() => {});
+
+  const toolAvail = (name) => tools[name]?.avail || (tools[name]?.found ? 'installed' : 'install');
+  const outdatedTools = ['gallery-dl', 'ffmpeg', 'yt-dlp'].filter(n => ['install', 'update'].includes(toolAvail(n)));
+  const toolsBusy = Object.values(liveTools).some(x => x?.status === 'downloading' || x?.status === 'installing');
+  const updateAllTools = () => outdatedTools.forEach(installTool);
+
+  const [cacheClearing, setCacheClearing] = useState(false);
+  const clearCache = async () => {
+    setCacheClearing(true);
+    try { await envApi.clearCache(); toast.success(t('settings.cacheCleared')); }
+    catch { toast.error(t('settings.clearCacheFailed')); }
+    finally { setCacheClearing(false); }
+  };
 
   const num = (k, v, fallback) => update({ [k]: v === '' ? fallback : Number(v) });
 
@@ -62,25 +77,15 @@ export default function Settings() {
       </header>
 
       <Section label={t('settings.engine')}>
+        <Row title={t('settings.defaultLimit')} desc={t('settings.defaultLimitDesc')}>
+          <Input
+            value={s.default_range || ''} onChange={e => update({ default_range: e.target.value })}
+            placeholder={t('settings.defaultLimitPlaceholder')} className="w-28 font-mono text-xs"
+          />
+        </Row>
         <Row title={t('settings.maxConcurrent')} desc={t('settings.maxConcurrentDesc')}>
           <Input type="number" min={0} max={16} value={s.max_concurrent ?? 2}
             onChange={e => num('max_concurrent', e.target.value, 0)} className="w-20" data-testid="max-concurrent" />
-        </Row>
-        <Row title={t('settings.rateLimit')} desc={t('settings.rateLimitDesc')}>
-          <Input value={s.rate_limit || ''} onChange={e => update({ rate_limit: e.target.value })}
-            placeholder="1M" className="w-24 font-mono text-xs" />
-        </Row>
-        <Row title={t('settings.proxy')} desc={t('settings.proxyDesc')}>
-          <Input value={s.proxy || ''} onChange={e => update({ proxy: e.target.value })}
-            placeholder="socks5://127.0.0.1:1080" className="w-64 font-mono text-xs" data-testid="proxy" />
-        </Row>
-        <Row title={t('settings.sleepRequest')} desc={t('settings.sleepRequestDesc')}>
-          <Input type="number" min={0} step={0.5} value={s.sleep_request ?? 0}
-            onChange={e => num('sleep_request', e.target.value, 0)} className="w-20" />
-        </Row>
-        <Row title={t('settings.retries')} desc={t('settings.retriesDesc')}>
-          <Input type="number" min={0} max={99} value={s.retries ?? 4}
-            onChange={e => num('retries', e.target.value, 0)} className="w-20" />
         </Row>
         <Row title={t('settings.skipExisting')} desc={t('settings.skipExistingDesc')}>
           <Switch checked={!!s.skip_existing} onCheckedChange={v => update({ skip_existing: v })} data-testid="skip-existing" />
@@ -88,6 +93,35 @@ export default function Settings() {
         <Row title={t('settings.writeMetadata')} desc={t('settings.writeMetadataDesc')}>
           <Switch checked={!!s.write_metadata} onCheckedChange={v => update({ write_metadata: v })} />
         </Row>
+
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(v => !v)}
+          className="w-full flex items-center justify-between p-4 text-left hover:bg-accent/50 transition-colors"
+        >
+          <span className="text-sm font-medium">{t('settings.advanced')}</span>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+        </button>
+        {showAdvanced && (
+          <>
+            <Row title={t('settings.rateLimit')} desc={t('settings.rateLimitDesc')}>
+              <Input value={s.rate_limit || ''} onChange={e => update({ rate_limit: e.target.value })}
+                placeholder="1M" className="w-24 font-mono text-xs" />
+            </Row>
+            <Row title={t('settings.proxy')} desc={t('settings.proxyDesc')}>
+              <Input value={s.proxy || ''} onChange={e => update({ proxy: e.target.value })}
+                placeholder="socks5://127.0.0.1:1080" className="w-64 font-mono text-xs" data-testid="proxy" />
+            </Row>
+            <Row title={t('settings.sleepRequest')} desc={t('settings.sleepRequestDesc')}>
+              <Input type="number" min={0} step={0.5} value={s.sleep_request ?? 0}
+                onChange={e => num('sleep_request', e.target.value, 0)} className="w-20" />
+            </Row>
+            <Row title={t('settings.retries')} desc={t('settings.retriesDesc')}>
+              <Input type="number" min={0} max={99} value={s.retries ?? 4}
+                onChange={e => num('retries', e.target.value, 0)} className="w-20" />
+            </Row>
+          </>
+        )}
       </Section>
 
       <Section label={t('settings.appearance')}>
@@ -114,10 +148,22 @@ export default function Settings() {
           <Switch checked={!!s.autostart} onCheckedChange={setAutostart} disabled={!isElectron} />
         </Row>
         {!isElectron && <p className="px-4 pb-3 -mt-2 text-[11px] text-muted-foreground">{t('settings.autoStartElectronOnly')}</p>}
+        <Row title={t('settings.notifications')} desc={t('settings.notificationsDesc')}>
+          <Switch
+            checked={s.notifications_enabled ?? true}
+            onCheckedChange={v => update({ notifications_enabled: v })}
+          />
+        </Row>
       </Section>
 
-      <Section label={t('settings.tools')}>
-        <div className="p-4 text-xs text-muted-foreground leading-relaxed">{t('settings.toolsDesc')}</div>
+      <Section
+        label={t('settings.tools')}
+        aside={outdatedTools.length > 0 && (
+          <Button size="sm" variant="outline" onClick={updateAllTools} disabled={toolsBusy}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateAll')}
+          </Button>
+        )}
+      >
         <ToolRow name="gallery-dl" tool={tools['gallery-dl']} live={liveTools['gallery-dl']} onInstall={installTool} t={t} />
         <ToolRow name="ffmpeg" tool={tools['ffmpeg']} live={liveTools['ffmpeg']} onInstall={installTool} t={t} />
         <ToolRow name="yt-dlp" tool={tools['yt-dlp']} live={liveTools['yt-dlp']} onInstall={installTool} t={t} />
@@ -125,7 +171,6 @@ export default function Settings() {
 
       {env && (
         <Section label={t('settings.files')}>
-          <div className="p-4 text-xs text-muted-foreground leading-relaxed">{t('settings.filesDesc')}</div>
           <Row title={t('settings.dataFolder')} desc={t('settings.dataFolderDesc')}>
             <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[280px] block">{env.data_dir}</code>
             {isElectron && (
@@ -152,6 +197,12 @@ export default function Settings() {
               )}
             </Row>
           )}
+          <Row title={t('settings.clearCache')} desc={t('settings.clearCacheDesc')}>
+            <Button variant="outline" size="sm" onClick={clearCache} disabled={cacheClearing}>
+              {cacheClearing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
+              {t('settings.clearCache')}
+            </Button>
+          </Row>
           <div className="p-4">
             <button onClick={() => { setShowCfg(v => !v); if (!cfg) envApi.config().then(setCfg).catch(() => setCfg({})); }}
               className="text-xs underline text-muted-foreground hover:text-foreground">

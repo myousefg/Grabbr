@@ -105,7 +105,7 @@ DEFAULT_OUTPUT_DIR = (
     os.environ.get("GRABBR_DEFAULT_OUTPUT")
     or str(Path.home() / "Downloads" / "Grabbr")
 )
-APP_VERSION = "1.0.0"                                # single source at runtime
+APP_VERSION = "1.1.0"                                # single source at runtime
 
 
 def _abs_output(p: Optional[str]) -> str:
@@ -323,6 +323,7 @@ CREATE TABLE IF NOT EXISTS settings (
     filename_format   TEXT DEFAULT '',
     folder_structure  TEXT DEFAULT 'site_user',
     folder_custom     TEXT DEFAULT '',
+    default_range     TEXT DEFAULT '',
     max_concurrent    INTEGER DEFAULT 2,
     rate_limit        TEXT DEFAULT '',
     proxy             TEXT DEFAULT '',
@@ -330,6 +331,7 @@ CREATE TABLE IF NOT EXISTS settings (
     retries           INTEGER DEFAULT 4,
     skip_existing     INTEGER DEFAULT 1,
     write_metadata    INTEGER DEFAULT 0,
+    notifications_enabled INTEGER DEFAULT 1,
     cookies_mode      TEXT DEFAULT 'browser',
     cookies_browser   TEXT DEFAULT 'firefox',
     cookies_file      TEXT DEFAULT '',
@@ -351,6 +353,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     files_ok       INTEGER DEFAULT 0,
     files_skipped  INTEGER DEFAULT 0,
     files_error    INTEGER DEFAULT 0,
+    files_json     TEXT DEFAULT '[]',
     total          INTEGER DEFAULT 0,
     current_file   TEXT DEFAULT '',
     error_text     TEXT DEFAULT '',
@@ -383,7 +386,10 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
             ("settings", "folder_structure", "TEXT DEFAULT 'site_user'"),
             ("settings", "folder_custom", "TEXT DEFAULT ''"),
             ("settings", "proxy", "TEXT DEFAULT ''"),
+            ("settings", "default_range", "TEXT DEFAULT ''"),
+            ("settings", "notifications_enabled", "INTEGER DEFAULT 1"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
+            ("jobs", "files_json", "TEXT DEFAULT '[]'"),
         ]:
             try:
                 c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
@@ -635,6 +641,7 @@ def _job_public(row: Optional[dict]) -> dict:
         row["options"] = json.loads(row.pop("options_json", "{}") or "{}")
     except Exception:
         row["options"] = {}
+    row.pop("files_json", None)  # internal; served via GET /jobs/{id}/files
     return row
 
 
@@ -759,6 +766,7 @@ class JobManager:
         logf.write(" ".join(argv) + "\n\n")
         cur = None
         written_dirs: set = set()
+        written_files: List[str] = []
 
         try:
             while True:
@@ -775,6 +783,11 @@ class JobManager:
                         d = os.path.dirname(text)
                         if d:
                             written_dirs.add(d)
+                        # Exact per-job file list for History thumbnails; a
+                        # directory scan can't tell one job's files apart from
+                        # another's when they share a flat destination folder.
+                        if len(written_files) < 500:
+                            written_files.append(str(Path(dest, text)))
                     elif kind == "skip":
                         counts["files_skipped"] += 1
                     elif kind == "error":
@@ -827,8 +840,7 @@ class JobManager:
                         hint = "auth"
 
         # Narrow dest_dir from the base output folder to the actual folder(s)
-        # gallery-dl wrote into, so the History thumbnail grid scans only this
-        # job's files.
+        # gallery-dl wrote into, so "Open folder" lands somewhere useful.
         dest_final = dest
         if written_dirs:
             try:
@@ -840,9 +852,9 @@ class JobManager:
                 pass
 
         db_run(
-            """UPDATE jobs SET status=?, files_ok=?, files_skipped=?, files_error=?,
+            """UPDATE jobs SET status=?, files_ok=?, files_skipped=?, files_error=?, files_json=?,
                    error_text=?, return_code=?, hint=?, dest_dir=?, current_file='', finished_at=? WHERE id=?""",
-            (status, counts["files_ok"], counts["files_skipped"], counts["files_error"],
+            (status, counts["files_ok"], counts["files_skipped"], counts["files_error"], json.dumps(written_files),
              "\n".join(errors[-20:]), rc, hint, dest_final, _now(), job_id),
         )
         final_row = _job_row(job_id)
@@ -1229,6 +1241,7 @@ class SettingsIn(BaseModel):
     filename_format: Optional[str] = None
     folder_structure: Optional[str] = None
     folder_custom: Optional[str] = None
+    default_range: Optional[str] = None
     max_concurrent: Optional[int] = None
     rate_limit: Optional[str] = None
     proxy: Optional[str] = None
@@ -1236,6 +1249,7 @@ class SettingsIn(BaseModel):
     retries: Optional[int] = None
     skip_existing: Optional[bool] = None
     write_metadata: Optional[bool] = None
+    notifications_enabled: Optional[bool] = None
     cookies_mode: Optional[str] = None
     cookies_browser: Optional[str] = None
     cookies_file: Optional[str] = None
@@ -1496,6 +1510,27 @@ def read_config():
         return {}
 
 
+@api.post("/cache/clear")
+def clear_cache():
+    """Wipe regenerable caches: video-thumbnail frames and gallery-dl's own
+    token/cursor cache. Downloads and site credentials are untouched."""
+    removed = 0
+    for p in THUMBS_DIR.glob("*"):
+        if p.is_file():
+            try:
+                p.unlink()
+                removed += 1
+            except OSError:
+                pass
+    try:
+        if CACHE_PATH.exists():
+            CACHE_PATH.unlink()
+            removed += 1
+    except OSError:
+        pass
+    return {"ok": True, "removed": removed}
+
+
 @api.get("/settings")
 def read_settings():
     return get_settings()
@@ -1505,13 +1540,14 @@ def read_settings():
 async def write_settings(body: SettingsIn):
     cur = get_settings()
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
-    for k in ("skip_existing", "write_metadata", "autostart"):
+    for k in ("skip_existing", "write_metadata", "notifications_enabled", "autostart"):
         if k in patch:
             patch[k] = 1 if patch[k] else 0
     merged = {**cur, **patch, "updated_at": _now()}
     cols = [
-        "output_dir", "filename_format", "folder_structure", "folder_custom", "max_concurrent",
+        "output_dir", "filename_format", "folder_structure", "folder_custom", "default_range", "max_concurrent",
         "rate_limit", "proxy", "sleep_request", "retries", "skip_existing", "write_metadata",
+        "notifications_enabled",
         "cookies_mode", "cookies_browser", "cookies_file", "theme", "language", "autostart", "updated_at",
     ]
     db_run(
@@ -1599,34 +1635,32 @@ def job_files(job_id: str, limit: int = Query(60, le=300)):
     row = _job_row(job_id)
     if not row:
         raise HTTPException(404, "Job not found")
-    base = Path(row.get("dest_dir") or "")
+    # Read the exact files this job wrote (recorded as it ran) instead of
+    # scanning dest_dir: a directory scan can't tell one job's files apart
+    # from another's when they share a flat destination folder, and was
+    # blanked out entirely whenever gallery-dl printed no subfolder.
     try:
-        base_r = base.resolve()
+        paths = json.loads(row.get("files_json") or "[]")
     except Exception:
-        return {"files": [], "count": 0, "root": str(base)}
-    # Don't scan the whole output tree, only a per-job subfolder.
-    if (not base.is_dir() or not _under_output(base) or base_r in _output_roots()):
-        return {"files": [], "count": 0, "root": str(base)}
+        paths = []
 
-    out, scanned = [], 0
-    for p in base.rglob("*"):
-        scanned += 1
-        if scanned > 20000:
-            break
-        if not p.is_file():
-            continue
+    out = []
+    for raw in paths:
+        p = Path(raw)
         ext = p.suffix.lower()
         kind = "image" if ext in _IMG_EXT else ("video" if ext in _VID_EXT else None)
-        if not kind:
+        if not kind or not _under_output(p):
             continue
         try:
+            if not p.is_file():
+                continue
             st = p.stat()
         except OSError:
             continue
         out.append({"name": p.name, "path": str(p), "kind": kind,
                     "size": st.st_size, "mtime": st.st_mtime})
     out.sort(key=lambda f: f["mtime"], reverse=True)
-    return {"files": out[:limit], "count": len(out), "root": str(base)}
+    return {"files": out[:limit], "count": len(out), "root": row.get("dest_dir") or ""}
 
 
 def _ffmpeg_bin() -> Optional[str]:
@@ -1690,7 +1724,7 @@ async def retry_job(job_id: str):
     if not _job_row(job_id):
         raise HTTPException(404, "Job not found")
     db_run(
-        """UPDATE jobs SET status='queued', files_ok=0, files_skipped=0, files_error=0,
+        """UPDATE jobs SET status='queued', files_ok=0, files_skipped=0, files_error=0, files_json='[]',
                error_text='', hint='', current_file='', return_code=NULL,
                started_at=NULL, finished_at=NULL WHERE id=?""",
         (job_id,),
@@ -1726,19 +1760,33 @@ async def delete_job_files(job_id: str):
         await manager.cancel(job_id)
 
     raw = (row.get("dest_dir") or "").strip()
-    removed = 0
-    if raw:
-        base = Path(raw)
+    base = Path(raw) if raw else None
+    base_r = None
+    if base:
         try:
             base_r = base.resolve()
         except Exception:
             base_r = None
-        # Must be a real per-job subfolder under a download root, never the root
-        # itself and never something outside it.
-        if (base_r and base.is_dir() and base_r.is_absolute()
-                and _under_output(base) and base_r not in _output_roots()):
-            removed = sum(1 for p in base.rglob("*") if p.is_file())
-            shutil.rmtree(base, ignore_errors=True)
+    # Must be a real per-job subfolder under a download root, never the root
+    # itself and never something outside it.
+    deletable = bool(base_r and base.is_dir() and base_r.is_absolute()
+                      and _under_output(base) and base_r not in _output_roots())
+
+    if base and base.is_dir() and not deletable:
+        # dest_dir exists but is a shared/root folder (e.g. Folder structure
+        # is "One flat folder") - refuse rather than silently drop the history
+        # entry while leaving every other job's files sitting right there.
+        raise HTTPException(
+            409,
+            "These files share the main download folder with other downloads, "
+            "so they can't be deleted individually. Use Remove to clear this "
+            "history entry instead, or delete files from the folder directly.",
+        )
+
+    removed = 0
+    if deletable:
+        removed = sum(1 for p in base.rglob("*") if p.is_file())
+        shutil.rmtree(base, ignore_errors=True)
 
     db_run("DELETE FROM jobs WHERE id=?", (job_id,))
     try:
