@@ -48,6 +48,13 @@ export default function Settings() {
     finally { setCacheClearing(false); }
   };
 
+  const [appUpdate, setAppUpdate] = useState({ status: 'idle' });
+  useEffect(() => {
+    if (!isElectron || !window.electronAPI.onAppUpdateStatus) return;
+    return window.electronAPI.onAppUpdateStatus(setAppUpdate);
+  }, []);
+  const checkForAppUpdate = () => { setAppUpdate({ status: 'checking' }); window.electronAPI.checkForAppUpdate(); };
+
   const num = (k, v, fallback) => update({ [k]: v === '' ? fallback : Number(v) });
 
   const setAutostart = async (v) => {
@@ -220,6 +227,7 @@ export default function Settings() {
       <Section label={t('settings.about')}>
         <Row title="Grabbr" desc={t('settings.aboutTagline')}>
           <span className="text-xs font-mono text-muted-foreground">{env?.app_version || '…'}</span>
+          {isElectron && <AppUpdateControl appUpdate={appUpdate} onCheck={checkForAppUpdate} t={t} />}
         </Row>
         <Row title={t('settings.components')} desc={t('settings.componentsDesc')}>
           <div className="text-right text-xs font-mono text-muted-foreground space-y-0.5">
@@ -253,6 +261,57 @@ export default function Settings() {
         </span>
       </div>
     </div>
+  );
+}
+
+function AppUpdateControl({ appUpdate, onCheck, t }) {
+  const { status, pct, version } = appUpdate;
+
+  if (status === 'checking') {
+    return <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"><Loader2 className="w-3 h-3 animate-spin" /> {t('settings.updateChecking')}</span>;
+  }
+  if (status === 'downloading') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Loader2 className="w-3 h-3 animate-spin" /> {t('settings.updateDownloading')} {pct != null ? `${pct}%` : ''}
+      </span>
+    );
+  }
+  if (status === 'downloaded') {
+    return (
+      <Button size="sm" variant="default" onClick={() => window.electronAPI.installAppUpdate()}>
+        <Download className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateRestart')}
+      </Button>
+    );
+  }
+  if (status === 'available') {
+    return (
+      <span className="inline-flex items-center gap-2">
+        <span className="text-[11px] text-amber-600 dark:text-amber-400">{t('settings.updateAvail', { version })}</span>
+        <Button size="sm" variant="outline" onClick={() => window.electronAPI.downloadAppUpdate()}>
+          <Download className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateDownload')}
+        </Button>
+      </span>
+    );
+  }
+  if (status === 'current') {
+    return (
+      <button type="button" onClick={onCheck} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+        <CheckCircle2 className="w-3.5 h-3.5" /> {t('settings.updateCurrent')}
+      </button>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <button type="button" onClick={onCheck} className="inline-flex items-center gap-1 text-[11px] text-destructive hover:underline">
+        <RefreshCw className="w-3 h-3" /> {t('settings.updateFailed')}
+      </button>
+    );
+  }
+  return (
+    <button type="button" onClick={onCheck} className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground">
+      <RefreshCw className="w-3 h-3" /> {t('settings.updateCheck')}
+    </button>
   );
 }
 

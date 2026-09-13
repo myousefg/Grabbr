@@ -15,6 +15,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setTrayBadge: (count) => ipcRenderer.invoke('set-tray-badge', count),
   setAutoStart: (enable) => ipcRenderer.invoke('set-auto-start', enable),
   getAutoStart: ()     => ipcRenderer.invoke('get-auto-start'),
+  checkForAppUpdate:   () => ipcRenderer.invoke('check-for-app-update'),
+  downloadAppUpdate:   () => ipcRenderer.invoke('download-app-update'),
+  installAppUpdate:    () => ipcRenderer.invoke('install-app-update'),
+  onAppUpdateStatus: (cb) => {
+    const listener = (_, payload) => cb(payload);
+    ipcRenderer.on('app-update-status', listener);
+    return () => ipcRenderer.removeListener('app-update-status', listener);
+  },
   apiToken: API_TOKEN,
   isElectron: true,
 });

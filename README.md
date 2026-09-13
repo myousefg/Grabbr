@@ -77,7 +77,9 @@ command line.
 That is the whole setup. gallery-dl is bundled. FFmpeg and yt-dlp are optional and download from
 inside the app (Settings, Tools) only if you grab video.
 
-- **Update:** download the newer installer and run it over the top.
+- **Update:** Grabbr checks GitHub for a newer release on startup. When one is found, go to
+  Settings, About and click **Download**, then **Restart to update**. You can also update
+  manually: download the newer installer and run it over the top.
 - **Uninstall:** *Add or remove programs*. To also clear the database, logs, and downloaded tools,
   delete `%APPDATA%\Grabbr` afterwards. Your downloaded media is never in there, it stays in the
   download folder you chose.

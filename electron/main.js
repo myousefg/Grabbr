@@ -2,6 +2,7 @@ const {
   app, BrowserWindow, Tray, Menu,
   ipcMain, dialog, shell, nativeImage, Notification,
 } = require('electron');
+const { autoUpdater } = require('electron-updater');
 const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const path = require('path');
@@ -53,6 +54,24 @@ function resolveGdlBin() {
 }
 
 console.log(`[grabbr] mode=${DEV ? 'DEV' : 'PROD'}`);
+
+// ── App auto-update (GitHub releases) ───────────────────────────────────────
+// Checking is automatic on startup; downloading and installing stay a
+// deliberate user action, same as the gallery-dl/ffmpeg/yt-dlp tools in
+// Settings, rather than silently restarting the app on them.
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
+
+function sendUpdateStatus(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app-update-status', payload);
+}
+
+autoUpdater.on('checking-for-update', () => sendUpdateStatus({ status: 'checking' }));
+autoUpdater.on('update-available', (info) => sendUpdateStatus({ status: 'available', version: info.version }));
+autoUpdater.on('update-not-available', () => sendUpdateStatus({ status: 'current' }));
+autoUpdater.on('error', (err) => sendUpdateStatus({ status: 'error', error: err?.message || String(err) }));
+autoUpdater.on('download-progress', (p) => sendUpdateStatus({ status: 'downloading', pct: Math.round(p.percent) }));
+autoUpdater.on('update-downloaded', (info) => sendUpdateStatus({ status: 'downloaded', version: info.version }));
 
 let mainWindow  = null;
 let tray        = null;
@@ -247,6 +266,21 @@ ipcMain.handle('set-auto-start', (_, enable) => {
 });
 ipcMain.handle('get-auto-start', () => app.getLoginItemSettings().openAtLogin);
 
+ipcMain.handle('check-for-app-update', async () => {
+  if (DEV) { sendUpdateStatus({ status: 'current' }); return; }
+  try { await autoUpdater.checkForUpdates(); }
+  catch (err) { sendUpdateStatus({ status: 'error', error: err?.message || String(err) }); }
+});
+ipcMain.handle('download-app-update', async () => {
+  try { await autoUpdater.downloadUpdate(); }
+  catch (err) { sendUpdateStatus({ status: 'error', error: err?.message || String(err) }); }
+});
+ipcMain.handle('install-app-update', () => {
+  isQuitting = true;
+  stopBackend();
+  autoUpdater.quitAndInstall();
+});
+
 // ── Lifecycle ───────────────────────────────────────────────────────────────
 app.whenReady().then(async () => {
   createWindow();
@@ -265,6 +299,9 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[grabbr] Backend failed:', err.message);
   }
+
+  // Silent startup check; downloading and installing stay opt-in from Settings.
+  if (!DEV) setTimeout(() => autoUpdater.checkForUpdates().catch(() => {}), 5000);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
