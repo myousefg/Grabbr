@@ -83,6 +83,52 @@ let savedConcurrency = 2;
 const TRAY_ICON_PATH   = path.join(__dirname, 'assets', 'icon.ico');
 const WINDOW_ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
 
+// ── Backend crash watchdog ──────────────────────────────────────────────────
+// The renderer's own WebSocket reconnect loop only helps once the backend is
+// actually listening again; nothing brought the process itself back if it
+// died mid-session, so the UI was stuck showing Offline until a full app
+// relaunch. Restart it automatically, with a circuit breaker so a backend
+// that's crash-looping (e.g. a corrupted config) doesn't spin forever.
+const MAX_RESTARTS_PER_WINDOW = 3;
+const RESTART_WINDOW_MS = 60_000;
+const RESTART_RETRY_DELAY_MS = 2000;
+const STABLE_AFTER_MS = 30_000; // running this long clears the crash count
+let restartAttempts = 0;
+let restartWindowStart = 0;
+let stableTimer = null;
+
+function handleBackendExit(code, signal) {
+  backendProc = null;
+  clearTimeout(stableTimer);
+  if (isQuitting) return; // expected: quitting the app, or a deliberate restart
+
+  console.warn(`[grabbr] Backend exited unexpectedly (code=${code}, signal=${signal})`);
+
+  const now = Date.now();
+  if (now - restartWindowStart > RESTART_WINDOW_MS) {
+    restartWindowStart = now;
+    restartAttempts = 0;
+  }
+  restartAttempts += 1;
+
+  if (restartAttempts > MAX_RESTARTS_PER_WINDOW) {
+    console.error('[grabbr] Backend keeps crashing; giving up on auto-restart.');
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'Grabbr',
+        body: "The background service stopped and couldn't be restarted automatically. Please restart Grabbr.",
+      }).show();
+    }
+    return;
+  }
+
+  console.warn(`[grabbr] Restarting backend in ${RESTART_RETRY_DELAY_MS}ms (attempt ${restartAttempts}/${MAX_RESTARTS_PER_WINDOW})`);
+  setTimeout(() => {
+    if (isQuitting) return;
+    startBackend().catch(err => console.error('[grabbr] Backend auto-restart failed:', err.message));
+  }, RESTART_RETRY_DELAY_MS);
+}
+
 // ── Backend process ─────────────────────────────────────────────────────────
 function startBackend() {
   return new Promise((resolve, reject) => {
@@ -109,6 +155,7 @@ function startBackend() {
     backendProc.stdout?.on('data', d => console.log('[py]', d.toString().trim()));
     backendProc.stderr?.on('data', d => console.warn('[py]', d.toString().trim()));
     backendProc.on('error', reject);
+    backendProc.on('exit', handleBackendExit);
 
     const deadline = Date.now() + 25_000;
     const poll = setInterval(() => {
@@ -117,7 +164,15 @@ function startBackend() {
         return reject(new Error('Backend startup timeout'));
       }
       http.get(`${BACKEND_URL}/api/`, res => {
-        if (res.statusCode === 200) { clearInterval(poll); console.log('[grabbr] Backend ready'); resolve(); }
+        if (res.statusCode === 200) {
+          clearInterval(poll);
+          console.log('[grabbr] Backend ready');
+          // Only clear the crash count once it's proven stable, so a backend
+          // that crashes right after each restart still trips the breaker.
+          clearTimeout(stableTimer);
+          stableTimer = setTimeout(() => { restartAttempts = 0; }, STABLE_AFTER_MS);
+          resolve();
+        }
       }).on('error', () => {});
     }, 500);
   });
@@ -126,6 +181,7 @@ function startBackend() {
 function stopBackend() {
   if (!backendProc) return;
   const pid = backendProc.pid;
+  backendProc.removeListener('exit', handleBackendExit);
   // The frozen backend is a PyInstaller one-file exe: killing the bootloader
   // leaves the real Python child (and any gallery-dl it spawned) holding port
   // 8766, which breaks the next launch. Reap the whole tree.

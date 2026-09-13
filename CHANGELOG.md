@@ -3,6 +3,13 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+- Electron now watches the backend process and restarts it automatically (with a circuit breaker
+  against crash-loops) if it dies mid-session, instead of leaving the sidebar stuck on "Offline"
+  until you relaunch Grabbr
+
 ## [1.1.0] - 2026-09-13
 
 ### Added
