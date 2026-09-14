@@ -35,7 +35,7 @@ echo.
 if not exist "%PROJECT_DIR%\bin\gallery-dl.exe" (
     echo [0/4] Fetching gallery-dl.exe...
     call "%PROJECT_DIR%\scripts\fetch-gdl.bat"
-    if errorlevel 1 ( echo ERROR: could not obtain bin\gallery-dl.exe & call :die )
+    if errorlevel 1 ( echo ERROR: could not obtain bin\gallery-dl.exe & goto :die )
 ) else (
     echo [0/4] bin\gallery-dl.exe present - skipping fetch.
 )
@@ -46,7 +46,7 @@ echo [1/4] Building Python backend with PyInstaller...
 cd /d "%PROJECT_DIR%\backend"
 %PY% -m pip install -r requirements.txt --quiet --disable-pip-version-check
 %PY% -m PyInstaller grabbr_backend.spec --clean --noconfirm
-if errorlevel 1 ( echo ERROR: PyInstaller failed. & call :die )
+if errorlevel 1 ( echo ERROR: PyInstaller failed. & goto :die )
 echo       Done. Output: backend\dist\grabbr-backend.exe
 echo.
 
@@ -55,7 +55,7 @@ echo [2/4] Building React frontend...
 cd /d "%PROJECT_DIR%\frontend"
 call yarn install --frozen-lockfile
 call yarn build
-if errorlevel 1 ( echo ERROR: React build failed. & call :die )
+if errorlevel 1 ( echo ERROR: React build failed. & goto :die )
 echo       Done. Output: frontend\build\
 echo.
 
@@ -64,7 +64,7 @@ echo [3/4] Packaging installer with electron-builder...
 cd /d "%PROJECT_DIR%"
 call npm install --silent
 call npm run dist
-if errorlevel 1 ( echo ERROR: electron-builder failed. & call :die )
+if errorlevel 1 ( echo ERROR: electron-builder failed. & goto :die )
 echo       Done. Output: dist\%INSTALLER_NAME%
 echo.
 
