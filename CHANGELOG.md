@@ -3,7 +3,7 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.1.1] - 2026-09-14
 
 ### Fixed
 - Electron now watches the backend process and restarts it automatically (with a circuit breaker
