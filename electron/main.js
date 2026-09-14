@@ -97,12 +97,33 @@ let restartAttempts = 0;
 let restartWindowStart = 0;
 let stableTimer = null;
 
-function handleBackendExit(code, signal) {
+// The packaged backend is a PyInstaller onefile exe; on a fresh/not-yet-cached
+// build it can occasionally double-launch, and the losing attempt exits with a
+// port-bind conflict that looks exactly like a crash even though a healthy
+// server is already up under a PID we're no longer tracking. A quick health
+// check tells the two apart before we burn the restart budget on nothing.
+function checkBackendAlive(timeoutMs = 1500) {
+  return new Promise(resolve => {
+    const req = http.get(`${BACKEND_URL}/api/`, res => {
+      resolve(res.statusCode === 200);
+      res.resume();
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(timeoutMs, () => { req.destroy(); resolve(false); });
+  });
+}
+
+async function handleBackendExit(code, signal) {
   backendProc = null;
   clearTimeout(stableTimer);
   if (isQuitting) return; // expected: quitting the app, or a deliberate restart
 
   console.warn(`[grabbr] Backend exited unexpectedly (code=${code}, signal=${signal})`);
+
+  if (await checkBackendAlive()) {
+    console.warn('[grabbr] Backend exited, but something is already answering on the port; not restarting.');
+    return;
+  }
 
   const now = Date.now();
   if (now - restartWindowStart > RESTART_WINDOW_MS) {
