@@ -9,6 +9,9 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - Electron now watches the backend process and restarts it automatically (with a circuit breaker
   against crash-loops) if it dies mid-session, instead of leaving the sidebar stuck on "Offline"
   until you relaunch Grabbr
+- A second, page-wide scrollbar could appear alongside the normal one (and scrolling it moved the
+  whole app off-screen); caused by the row tooltips' hidden accessibility text escaping its
+  scroll container
 
 ## [1.1.0] - 2026-09-13
 
