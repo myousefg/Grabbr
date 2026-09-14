@@ -9,6 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { Section, Row } from '@/components/settingsUi';
+import LanguageCombobox from '@/components/LanguageCombobox';
 import LegalSection, { COPYRIGHT_YEAR, COPYRIGHT_HOLDER } from '@/components/LegalSection';
 import { useI18n } from '@/context/I18nProvider';
 import { useTheme } from '@/context/ThemeProvider';
@@ -191,13 +192,7 @@ export default function Settings() {
           </Select>
         </Row>
         <Row title={t('settings.language')}>
-          <Select value={lang} onValueChange={v => { setLang(v); update({ language: v }); }}>
-            <SelectTrigger className="w-36" data-testid="lang-select"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="en">English</SelectItem>
-              <SelectItem value="id">Bahasa Indonesia</SelectItem>
-            </SelectContent>
-          </Select>
+          <LanguageCombobox value={lang} onValueChange={v => { setLang(v); update({ language: v }); }} t={t} />
         </Row>
         <Row title={t('settings.startWithWindows')} desc={t('settings.startWithWindowsDesc')}>
           <Switch checked={!!s.autostart} onCheckedChange={setAutostart} disabled={!isElectron} />

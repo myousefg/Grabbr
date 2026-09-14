@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/context/ThemeProvider';
-import { I18nProvider } from '@/context/I18nProvider';
+import { I18nProvider, useI18n } from '@/context/I18nProvider';
 import { JobsProvider } from '@/context/JobsProvider';
-import { SettingsProvider } from '@/context/SettingsProvider';
+import { SettingsProvider, useSettings } from '@/context/SettingsProvider';
+import { LANGUAGE_CODES } from '@/locales/languages';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import Layout from '@/components/Layout';
 import Onboarding, { introDismissed } from '@/components/Onboarding';
@@ -17,11 +18,29 @@ import './App.css';
 
 function RoutedShell() {
   const [tour, setTour] = useState(() => !introDismissed());
+  const { settings } = useSettings();
+  const { lang, setLang } = useI18n();
+
   useEffect(() => {
     const open = () => setTour(true);
     window.addEventListener('grabbr:tour', open);
     return () => window.removeEventListener('grabbr:tour', open);
   }, []);
+
+  // If localStorage was cleared but the backend still has a saved
+  // preference (or this is a different device sharing the same profile),
+  // adopt it once settings finish loading rather than staying on whatever
+  // I18nProvider guessed from the OS locale.
+  const syncedFromSettings = useRef(false);
+  useEffect(() => {
+    if (syncedFromSettings.current) return;
+    if (!settings?.language) return;
+    syncedFromSettings.current = true;
+    if (settings.language !== lang && LANGUAGE_CODES.includes(settings.language)) {
+      setLang(settings.language);
+    }
+  }, [settings, lang, setLang]);
+
   return (
     <>
       <Layout>
