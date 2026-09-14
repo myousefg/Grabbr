@@ -9,9 +9,10 @@ gallery, profile, or tag-search URLs and watch them download with a live queue, 
 a streaming log, a searchable history, per-site logins, and a one-click tool installer. No command
 line, no hand-editing a JSON config.
 
-[![Version](https://img.shields.io/badge/version-1.1.2-blue?style=flat-square)](https://github.com/myousefg/Grabbr/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.1.3-blue?style=flat-square)](https://github.com/myousefg/Grabbr/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)](#)
 [![Stack](https://img.shields.io/badge/stack-Electron%20%2B%20React%20%2B%20Python-informational?style=flat-square)](#)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
 </div>
 
@@ -35,6 +36,7 @@ line, no hand-editing a JSON config.
 - [Building the installer](#building-the-installer)
 - [Project structure](#project-structure)
 - [Gotchas](#gotchas)
+- [Contributing](#contributing)
 
 ---
 
@@ -51,6 +53,10 @@ line, no hand-editing a JSON config.
   password, or OAuth.
 - **Tools installer**: download gallery-dl, FFmpeg, and yt-dlp into Grabbr with one click, with
   install / update / up-to-date states.
+- **YouTube downloads**: paste a YouTube link and Grabbr routes it through yt-dlp instead of
+  gallery-dl, with a quality (1080p down to 360p) and format (MP4 / MP3) picker.
+- **GIF conversion**: a Twitter/X "GIF" is really a looping MP4 under the hood; Grabbr detects
+  that automatically and converts it to a real `.gif` with FFmpeg, no setting required.
 - **Skip already-downloaded**: a shared download archive, so re-running a URL only grabs new files.
 - **Folder structure control**: per-site subfolders (default), site-only, one flat folder, or a
   custom template.
@@ -68,7 +74,7 @@ command line.
 
 **Windows 10 or 11, 64-bit.**
 
-1. Download **`Grabbr-Setup-1.1.2.exe`** from the
+1. Download **`Grabbr-Setup-1.1.3.exe`** from the
    [latest release](https://github.com/myousefg/Grabbr/releases/latest).
 2. Run it. Because the build is not code-signed, Windows SmartScreen may show a blue warning:
    click **More info**, then **Run anyway**.
@@ -84,7 +90,7 @@ inside the app (Settings, Tools) only if you grab video.
   delete `%APPDATA%\Grabbr` afterwards. Your downloaded media is never in there, it stays in the
   download folder you chose.
 - **Verify the download (optional):** each release also ships `checksum.txt`; compare it with
-  `Get-FileHash Grabbr-Setup-1.1.2.exe` in PowerShell.
+  `Get-FileHash Grabbr-Setup-1.1.3.exe` in PowerShell.
 
 Want to build it yourself instead? See [Building the installer](#building-the-installer).
 
@@ -206,9 +212,9 @@ on anything being on your `PATH`.
 
 | Tool | Purpose | Update check |
 | --- | --- | --- |
-| **gallery-dl** | the download engine | pinned to the version Grabbr ships with |
-| **FFmpeg** | converts Pixiv ugoira to video | none (no clean version feed) |
-| **yt-dlp** | HLS/DASH video downloads | checked against yt-dlp's latest GitHub release |
+| **gallery-dl** | the download engine for everything except YouTube | pinned to the version Grabbr ships with |
+| **FFmpeg** | converts Pixiv ugoira to video, and Twitter/X "GIFs" to real `.gif` | none (no clean version feed) |
+| **yt-dlp** | powers YouTube downloads directly, plus HLS/DASH video inside other sites | checked against yt-dlp's latest GitHub release |
 
 Each row is one of: **Not installed** (Install button) · **Update available** (Update button, shows
 the newer version) · **Up to date** (no button) · **Installed** (FFmpeg, Reinstall only). Downloads
@@ -326,7 +332,7 @@ Runs, in order:
 0. fetch-gdl        ->  bin\gallery-dl.exe (if missing)
 1. PyInstaller      ->  backend\dist\grabbr-backend.exe
 2. yarn build       ->  frontend\build\
-3. electron-builder ->  dist\Grabbr-Setup-1.1.2.exe + checksum.txt
+3. electron-builder ->  dist\Grabbr-Setup-1.1.3.exe + checksum.txt
 ```
 
 Both `grabbr-backend.exe` and `bin\gallery-dl.exe` ship as `extraResources`. Keep the version in
@@ -371,6 +377,15 @@ grabbr/
 - **API errors** (a 404 on a job that is already gone, a network blip) are caught and shown as a
   small toast, not a crash. A render error shows a recoverable "Something broke on this screen"
   card via the error boundary.
+
+---
+
+## Contributing
+
+Issues and pull requests are welcome. For anything beyond a small fix, please open an issue first
+to discuss the approach — especially for changes touching the config generation or the job engine,
+since both are tightly coupled to the exact gallery-dl version Grabbr ships with (see
+[Gotchas](#gotchas)). See [Getting started (dev)](#getting-started-dev) to run it locally.
 
 ---
 

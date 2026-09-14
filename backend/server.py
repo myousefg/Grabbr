@@ -92,6 +92,15 @@ def gdl_bin() -> str:
     )
 
 
+def ytdlp_bin() -> str:
+    return (
+        tool_path("yt-dlp")
+        or shutil.which("yt-dlp")
+        or shutil.which("yt-dlp.exe")
+        or "yt-dlp"
+    )
+
+
 def sub_env() -> dict:
     """Env for gallery-dl subprocesses: tools/ on PATH so a downloaded
     ffmpeg / yt-dlp is found without extra config."""
@@ -106,7 +115,7 @@ DEFAULT_OUTPUT_DIR = (
     os.environ.get("GRABBR_DEFAULT_OUTPUT")
     or str(Path.home() / "Downloads" / "Grabbr")
 )
-APP_VERSION = "1.1.2"                                # single source at runtime
+APP_VERSION = "1.1.3"                                # single source at runtime
 
 
 def _abs_output(p: Optional[str]) -> str:
@@ -528,7 +537,12 @@ def build_argv(url: str, settings: dict, options: Optional[dict] = None,
         # ignore the download archive for this run, re-checks the filesystem
         # instead, so deleted files get pulled again
         argv += ["-o", "archive="]
-    if int(settings.get("write_metadata", 0)) and not simulate:
+    if not simulate:
+        # Always on (not gated by the user's own write_metadata setting):
+        # this is also how the GIF-conversion pass below knows which
+        # downloaded videos are actually Twitter/X "GIFs" (type ==
+        # "animated_gif" in the sidecar JSON). The sidecar itself is deleted
+        # afterward unless the user's own setting wants it kept.
         argv += ["--write-metadata"]
     if simulate:
         argv.append("--simulate")
@@ -583,6 +597,19 @@ def _site_for_url(url: str) -> Optional[str]:
     return _COOKIE_HOSTS.get(host) or _COOKIE_HOSTS.get(host.lstrip("www."))
 
 
+# gallery-dl has no YouTube extractor at all; YouTube URLs get routed to a
+# fully separate yt-dlp subprocess path (JobManager._run_ytdlp) instead.
+_YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be"}
+
+
+def _is_youtube_url(url: str) -> bool:
+    m = re.match(r"https?://([^/]+)", url or "", re.I)
+    if not m:
+        return False
+    host = m.group(1).lower().split(":")[0]
+    return host in _YOUTUBE_HOSTS or host.endswith(".youtube.com")
+
+
 def classify_line(raw: str) -> tuple:
     line = raw.rstrip("\r\n").strip()
     if not line:
@@ -601,6 +628,67 @@ def classify_line(raw: str) -> tuple:
         return ("noise", line)
     if ("/" in line or "\\" in line) or re.search(r"\.\w{1,5}$", line):
         return ("file", line)
+    return ("noise", line)
+
+
+# ── yt-dlp (YouTube) ─────────────────────────────────────────────────────────
+# A separate argv builder and line classifier: yt-dlp's flags and stdout format
+# are unrelated to gallery-dl's. Verified against the actual bundled yt-dlp
+# (2026.08.19): modern YouTube rarely has a single combined audio+video
+# format, so quality selection always goes through the adaptive
+# "video+audio, then merge" path (bv*+ba), not a single "best[height<=N]".
+# -O "after_move:..." was tested and found to silently suppress
+# --progress-template's download output entirely; --print-to-file does not
+# have that conflict, so the final path is read from a side file instead.
+_YTDLP_QUALITY_HEIGHT = {"1080": 1080, "720": 720, "480": 480, "360": 360}
+
+
+def build_ytdlp_argv(url: str, settings: dict, options: Optional[dict], print_to_path: str) -> List[str]:
+    options = options or {}
+    quality = str(options.get("quality") or "").strip()
+    fmt = str(options.get("format") or "mp4").strip()
+
+    argv = [
+        ytdlp_bin(), "--newline", "--no-playlist",
+        "--progress-template",
+        "download:GRABBR-PROGRESS %(progress.downloaded_bytes)s/%(progress.total_bytes_estimate,progress.total_bytes)s",
+        "--print-to-file", "after_move:%(filepath)s", print_to_path,
+    ]
+
+    if fmt == "mp3":
+        argv += ["-t", "mp3"]
+    else:
+        argv += ["-t", "mp4"]
+        h = _YTDLP_QUALITY_HEIGHT.get(quality)
+        fmt_sel = f"bv*[height<={h}]+ba/b[height<={h}]" if h else "bv*+ba/b"
+        argv += ["-f", fmt_sel]
+
+    if settings.get("proxy"):
+        argv += ["--proxy", str(settings["proxy"]).strip()]
+    if settings.get("rate_limit"):
+        argv += ["-r", str(settings["rate_limit"])]
+
+    argv.append(url)
+    return argv
+
+
+_YTDLP_PROGRESS = re.compile(r"^GRABBR-PROGRESS (\d+)/(\d+|NA)$")
+_YTDLP_ERROR = re.compile(r"^ERROR:\s*(.*)$")
+_YTDLP_WARNING = re.compile(r"^WARNING:\s*(.*)$")
+
+
+def classify_ytdlp_line(raw: str) -> tuple:
+    line = raw.rstrip("\r\n").strip()
+    if not line:
+        return ("noise", "")
+    if _YTDLP_PROGRESS.match(line):
+        return ("progress", line)
+    m = _YTDLP_ERROR.match(line)
+    if m:
+        return ("error", m.group(1))
+    m = _YTDLP_WARNING.match(line)
+    if m:
+        return ("warning", m.group(1))
     return ("noise", line)
 
 
@@ -675,25 +763,37 @@ class JobManager:
         proc = self.running.get(job_id)
         if proc and proc.returncode is None:
             pid = proc.pid
-            try:
-                if os.name == "nt":
-                    import signal
-                    try:
-                        proc.send_signal(signal.CTRL_BREAK_EVENT)
-                        await asyncio.sleep(0.3)
-                    except Exception:
-                        pass
-                proc.kill()
-            except Exception:
-                pass
-            # Reap the whole tree: the frozen gallery-dl has a bootloader child,
-            # and video jobs spawn yt-dlp / ffmpeg.
             if os.name == "nt":
+                import signal
+                try:
+                    proc.send_signal(signal.CTRL_BREAK_EVENT)
+                    await asyncio.sleep(0.3)
+                except Exception:
+                    pass
+                # taskkill /T needs the target PID to still be alive to walk
+                # its live tree, so it must run BEFORE proc.kill() - killing
+                # the tracked PID first let an already-spawned grandchild
+                # (e.g. yt-dlp re-executing itself as its own child) survive
+                # as an orphan, since taskkill can no longer discover a live
+                # tree through an already-dead parent (confirmed live: a
+                # cancelled yt-dlp job left its child running for this exact
+                # reason). /F on the root already force-kills the whole tree,
+                # so this alone reaps everything; proc.kill() is just a
+                # fallback in case taskkill itself failed.
                 try:
                     await asyncio.to_thread(
                         subprocess.run, ["taskkill", "/F", "/T", "/PID", str(pid)],
                         capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW,
                     )
+                except Exception:
+                    pass
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+            else:
+                try:
+                    proc.kill()
                 except Exception:
                     pass
         else:
@@ -722,7 +822,6 @@ class JobManager:
         if not row:
             return
         settings = get_settings()
-        write_gdl_config()
         url = row["url"]
         try:
             job_opts = json.loads(row.get("options_json") or "{}")
@@ -733,8 +832,13 @@ class JobManager:
             Path(dest).mkdir(parents=True, exist_ok=True)
         except Exception:
             pass
-        argv = build_argv(url, settings, job_opts)
         log_path = str(JOB_LOG_DIR / f"{job_id}.log")
+
+        if _is_youtube_url(url):
+            return await self._run_ytdlp(job_id, job_opts, dest, log_path)
+
+        write_gdl_config()
+        argv = build_argv(url, settings, job_opts)
 
         db_run(
             "UPDATE jobs SET status='running', started_at=?, dest_dir=?, command=?, log_path=?, hint='' WHERE id=?",
@@ -852,6 +956,30 @@ class JobManager:
             except Exception:
                 pass
 
+        # GIF conversion: replace any Twitter/X "animated_gif" mp4 with a real
+        # .gif (mutates written_files in place - .gif is already in _IMG_EXT,
+        # so this needs no History/frontend changes, it just shows up like
+        # any other image). --write-metadata is always forced above so there
+        # are sidecars to read; sidecar_sources captures the pre-mutation
+        # filenames so cleanup below can still find them by their original
+        # (pre-conversion) name.
+        sidecar_sources = list(written_files)
+        for video_path in _gif_candidates(written_files):
+            gif_path = await asyncio.to_thread(_convert_to_gif, video_path)
+            if gif_path:
+                idx = written_files.index(str(video_path))
+                written_files[idx] = str(gif_path)
+                try:
+                    video_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        if not int(settings.get("write_metadata", 0)):
+            for raw in sidecar_sources:
+                try:
+                    _gif_sidecar(Path(raw)).unlink(missing_ok=True)
+                except Exception:
+                    pass
+
         db_run(
             """UPDATE jobs SET status=?, files_ok=?, files_skipped=?, files_error=?, files_json=?,
                    error_text=?, return_code=?, hint=?, dest_dir=?, current_file='', finished_at=? WHERE id=?""",
@@ -860,6 +988,126 @@ class JobManager:
         )
         final_row = _job_row(job_id)
         if final_row:  # may be gone if the user hit Delete mid-run
+            await ws_manager.broadcast({"type": "job.update", "job": _job_public(final_row)})
+        async with self.cond:
+            self.cond.notify_all()
+
+    async def _run_ytdlp(self, job_id: str, job_opts: dict, dest: str, log_path: str):
+        """YouTube path: a direct yt-dlp subprocess, parallel to gallery-dl's
+        _run() above. gallery-dl has no YouTube extractor at all, so this
+        doesn't touch write_gdl_config()/build_argv() in any way. Dispatch,
+        concurrency gating, cancellation (taskkill /T already reaps whatever
+        child process is tracked), and the DB/WS job lifecycle are all shared
+        with the gallery-dl path unchanged."""
+        settings = get_settings()
+        row = _job_row(job_id)
+        if not row:
+            return
+        url = row["url"]
+        filepath_out = str(JOB_LOG_DIR / f"{job_id}.ytdlp_path")
+        try:
+            Path(filepath_out).unlink(missing_ok=True)
+        except Exception:
+            pass
+        argv = build_ytdlp_argv(url, settings, job_opts, filepath_out)
+
+        db_run(
+            "UPDATE jobs SET status='running', started_at=?, dest_dir=?, command=?, log_path=?, hint='' WHERE id=?",
+            (_now(), dest, " ".join(argv), log_path, job_id),
+        )
+        await ws_manager.broadcast({"type": "job.update", "job": _job_public(_job_row(job_id))})
+
+        creationflags = (subprocess.CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW) if os.name == "nt" else 0
+
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                creationflags=creationflags, env=sub_env(), cwd=dest,
+            )
+        except FileNotFoundError:
+            db_run(
+                "UPDATE jobs SET status='error', error_text=?, finished_at=? WHERE id=?",
+                (f"yt-dlp binary not found at: {ytdlp_bin()}", _now(), job_id),
+            )
+            await ws_manager.broadcast({"type": "job.update", "job": _job_public(_job_row(job_id))})
+            async with self.cond:
+                self.cond.notify_all()
+            return
+
+        self.running[job_id] = proc
+        logf = open(log_path, "w", encoding="utf-8", errors="replace")
+        logf.write(" ".join(argv) + "\n\n")
+        errors: List[str] = []
+        last_flush = 0.0
+        cur_bytes = tot_bytes = None
+
+        try:
+            while True:
+                chunk = await proc.stdout.readline()
+                if not chunk:
+                    break
+                raw = chunk.decode("utf-8", errors="replace")
+                logf.write(raw)
+                for piece in raw.replace("\r", "\n").split("\n"):
+                    kind, text = classify_ytdlp_line(piece)
+                    if kind == "progress":
+                        m = _YTDLP_PROGRESS.match(text)
+                        if m:
+                            cur_bytes = int(m.group(1))
+                            tot_bytes = None if m.group(2) == "NA" else int(m.group(2))
+                    elif kind == "error":
+                        errors.append(text)
+                    if kind in ("error", "warning"):
+                        await ws_manager.broadcast({"type": "job.line", "id": job_id, "kind": kind, "text": text})
+                now = time.monotonic()
+                if now - last_flush > 0.25:
+                    last_flush = now
+                    logf.flush()
+                    label = f"{cur_bytes}/{tot_bytes}" if (cur_bytes is not None and tot_bytes) else ""
+                    db_run("UPDATE jobs SET current_file=? WHERE id=?", (label[:400], job_id))
+                    await ws_manager.broadcast({
+                        "type": "job.progress", "id": job_id,
+                        "files_ok": 0, "files_skipped": 0, "files_error": len(errors),
+                        "current_file": label,
+                    })
+            rc = await proc.wait()
+        finally:
+            logf.flush()
+            logf.close()
+            self.running.pop(job_id, None)
+
+        cancelled = job_id in self.cancelled
+        self.cancelled.discard(job_id)
+
+        final_path = ""
+        try:
+            final_path = Path(filepath_out).read_text(encoding="utf-8", errors="replace").strip()
+        except Exception:
+            pass
+        finally:
+            try:
+                Path(filepath_out).unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        written_files = [final_path] if final_path else []
+        status = "canceled" if cancelled else ("done" if rc == 0 and final_path else "error")
+        counts = {
+            "files_ok": 1 if status == "done" else 0,
+            "files_skipped": 0,
+            "files_error": 0 if status == "done" else (1 if status == "error" else 0),
+        }
+        if status == "error" and not errors:
+            errors = ["yt-dlp exited without producing a file; see log for details"]
+
+        db_run(
+            """UPDATE jobs SET status=?, files_ok=?, files_skipped=?, files_error=?, files_json=?,
+                   error_text=?, return_code=?, hint='', dest_dir=?, current_file='', finished_at=? WHERE id=?""",
+            (status, counts["files_ok"], counts["files_skipped"], counts["files_error"], json.dumps(written_files),
+             "\n".join(errors[-20:]), rc, dest, _now(), job_id),
+        )
+        final_row = _job_row(job_id)
+        if final_row:
             await ws_manager.broadcast({"type": "job.update", "job": _job_public(final_row)})
         async with self.cond:
             self.cond.notify_all()
@@ -1696,6 +1944,82 @@ def _video_thumb(p: Path) -> Optional[Path]:
         if out.exists() and out.stat().st_size > 0:
             return out
     return None
+
+
+# ── GIF conversion ───────────────────────────────────────────────────────────
+# Twitter/X hasn't stored real animated GIFs since ~2019 - every "GIF" tweet
+# is actually served as a looping mp4. gallery-dl's Twitter extractor already
+# tags each downloaded item with the site's own type ("photo"/"video"/
+# "animated_gif"), captured verbatim in the --write-metadata sidecar (forced
+# on for every job, see build_argv). Reading that tag is far more reliable
+# than guessing from the video itself (duration, no audio track, etc. would
+# also match plenty of real silent videos).
+_GIF_MAX_SECONDS = 20  # skip conversion above this to avoid huge/slow GIFs
+
+
+def _gif_sidecar(video_path: Path) -> Path:
+    return video_path.with_name(video_path.name + ".json")
+
+
+def _gif_candidates(written_files: List[str]) -> List[Path]:
+    out = []
+    for raw in written_files:
+        p = Path(raw)
+        if p.suffix.lower() not in _VID_EXT:
+            continue
+        sidecar = _gif_sidecar(p)
+        if not sidecar.exists():
+            continue
+        try:
+            meta = json.loads(sidecar.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            continue
+        if meta.get("type") == "animated_gif":
+            out.append(p)
+    return out
+
+
+def _video_duration(p: Path) -> Optional[float]:
+    ff = _ffmpeg_bin()
+    if not ff:
+        return None
+    ffprobe = str(Path(ff).with_name(Path(ff).stem.replace("ffmpeg", "ffprobe") + Path(ff).suffix))
+    if not Path(ffprobe).exists():
+        return None
+    try:
+        r = subprocess.run(
+            [ffprobe, "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(p)],
+            capture_output=True, timeout=15, text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        return float(r.stdout.strip())
+    except Exception:
+        return None
+
+
+def _convert_to_gif(video_path: Path) -> Optional[Path]:
+    """One ffmpeg call, palette-based two-stage filter (palettegen ->
+    paletteuse) for decent quality/size - the standard approach, avoids the
+    banding a naive single-pass GIF encode produces."""
+    ff = _ffmpeg_bin()
+    if not ff:
+        return None
+    dur = _video_duration(video_path)
+    if dur is not None and dur > _GIF_MAX_SECONDS:
+        return None
+    out = video_path.with_suffix(".gif")
+    filt = "fps=15,scale=480:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse"
+    try:
+        r = subprocess.run(
+            [ff, "-y", "-loglevel", "error", "-i", str(video_path),
+             "-filter_complex", filt, str(out)],
+            capture_output=True, timeout=60,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except Exception:
+        return None
+    return out if r.returncode == 0 and out.exists() and out.stat().st_size > 0 else None
 
 
 @api.get("/thumb")

@@ -31,6 +31,12 @@ function hasDedicatedExtractor(url) {
   catch { return false; }
 }
 
+const YOUTUBE_RE = /(?:^|\.)(?:youtube\.com|youtu\.be|music\.youtube\.com)$/i;
+function isYoutubeUrl(url) {
+  try { return YOUTUBE_RE.test(new URL(url.replace(/^[a-z-]+:(?=https?:)/i, '')).hostname); }
+  catch { return false; }
+}
+
 function isValidUrl(url) {
   try {
     const stripped = url.replace(/^[a-z-]+:(?=https?:)/i, '');
@@ -56,13 +62,20 @@ export default function Dashboard() {
   const [mode, setMode] = useState('auto');
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null); // { url, options }
+  const [quality, setQuality] = useState('best'); // YouTube only
+  const [format, setFormat] = useState('mp4');  // YouTube only: mp4 | mp3
 
   const urls = useMemo(() => splitUrls(text), [text]);
   const modeMismatch = mode !== 'auto' && urls.some(hasDedicatedExtractor);
   const hasInvalidUrl = urls.length > 0 && !urls.every(isValidUrl);
+  const allYoutube = urls.length > 0 && urls.every(isYoutubeUrl);
   const jobOptions = () => {
     const o = {};
     if (s?.default_range?.trim()) o.range = s.default_range.trim();
+    if (allYoutube) {
+      if (quality !== 'best') o.quality = quality;
+      if (format && format !== 'mp4') o.format = format;
+    }
     return Object.keys(o).length ? o : undefined;
   };
 
@@ -167,11 +180,30 @@ export default function Dashboard() {
               if (!isValidUrl(urls[0])) { toast.error(t('dashboard.invalidUrl')); return; }
               setPreview({ url: applyMode(urls[0], mode), options: jobOptions() });
             }}
-            disabled={busy || urls.length !== 1}
+            disabled={busy || urls.length !== 1 || isYoutubeUrl(urls[0])}
             data-testid="preview-btn"
           >
             <Eye className="w-4 h-4 mr-2" /> {t('dashboard.preview')}
           </Button>
+          {allYoutube && (
+            <>
+              <Select value={quality} onValueChange={setQuality}>
+                <SelectTrigger className="w-28" data-testid="yt-quality"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['best', '1080', '720', '480', '360'].map(q => (
+                    <SelectItem key={q} value={q}>{t(`dashboard.quality.${q}`)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={format} onValueChange={setFormat}>
+                <SelectTrigger className="w-24" data-testid="yt-format"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mp4">{t('dashboard.format.mp4')}</SelectItem>
+                  <SelectItem value="mp3">{t('dashboard.format.mp3')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          )}
           <Select value={mode} onValueChange={setMode}>
             <SelectTrigger className="w-[190px] ml-auto" data-testid="mode-select"><SelectValue /></SelectTrigger>
             <SelectContent>
