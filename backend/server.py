@@ -13,6 +13,7 @@ Single-file (mirrors Foldr). Sections:
   - FastAPI routes
 """
 import asyncio
+import ctypes
 import hashlib
 import json
 import os
@@ -1931,5 +1932,27 @@ async def ws_endpoint(ws: WebSocket):
 
 app.include_router(api)
 
+
+def _watch_parent_and_exit():
+    """GRABBR_PARENT_PID is the Electron process that spawned us. Task Manager
+    doesn't group this windowless process under the app's entry (that grouping
+    is by window ownership, not the actual process tree), so "End Task" on
+    Grabbr never reaches us - we'd otherwise be orphaned, left holding the
+    port with a token no later launch can ever match. Exit the instant that
+    process is gone, by any means: normal quit, crash, or a kill."""
+    pid = os.environ.get("GRABBR_PARENT_PID")
+    if not pid or os.name != "nt":
+        return
+    PROCESS_SYNCHRONIZE = 0x00100000
+    INFINITE = 0xFFFFFFFF
+    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_SYNCHRONIZE, False, int(pid))
+    if not handle:
+        return
+    ctypes.windll.kernel32.WaitForSingleObject(handle, INFINITE)
+    log.warning("Parent process %s exited; shutting down.", pid)
+    os._exit(0)
+
+
 if __name__ == "__main__":
+    threading.Thread(target=_watch_parent_and_exit, daemon=True).start()
     uvicorn.run(app, host="127.0.0.1", port=PORT, log_level="info")

@@ -150,8 +150,36 @@ async function handleBackendExit(code, signal) {
   }, RESTART_RETRY_DELAY_MS);
 }
 
+// GRABBR_TOKEN is randomized fresh on every launch (it's the per-run secret
+// that keeps other browser tabs off the loopback API), so a backend left over
+// from a prior session - e.g. the app was killed via Task Manager instead of
+// quit normally, orphaning the PyInstaller child that holds the port - can
+// never be a match for this session's renderer. Our own spawn would just fail
+// to bind and, correctly seeing the old one answering fine, never retry;
+// meanwhile the UI stays stuck unable to authenticate against it forever.
+// Clear anything already on our port before spawning so every launch starts
+// from a clean, correctly-tokened backend.
+function killStaleBackend() {
+  if (process.platform !== 'win32') return;
+  try {
+    const out = spawnSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true }).stdout || '';
+    const portPattern = new RegExp(`:${BACKEND_PORT}\\s`);
+    const pids = new Set();
+    for (const line of out.split('\n')) {
+      if (!portPattern.test(line) || !line.includes('LISTENING')) continue;
+      const m = line.trim().match(/(\d+)\s*$/);
+      if (m) pids.add(m[1]);
+    }
+    for (const pid of pids) {
+      console.warn(`[grabbr] Clearing stale process on port ${BACKEND_PORT} (PID ${pid})`);
+      spawnSync('taskkill', ['/F', '/T', '/PID', pid], { windowsHide: true });
+    }
+  } catch { /* best-effort; startBackend's own timeout still catches a stuck bind */ }
+}
+
 // ── Backend process ─────────────────────────────────────────────────────────
 function startBackend() {
+  killStaleBackend();
   return new Promise((resolve, reject) => {
     const gdl = resolveGdlBin();
     const env = {
@@ -159,6 +187,12 @@ function startBackend() {
       GRABBR_PORT: String(BACKEND_PORT),
       // Default download folder for a first run, before the user picks one.
       GRABBR_DEFAULT_OUTPUT: path.join(app.getPath('downloads'), 'Grabbr'),
+      // Task Manager doesn't group this windowless process under the "Grabbr"
+      // app entry (that grouping is by AppUserModelID/window ownership, not
+      // process tree), so "End Task" on Grabbr never reaches it and it's left
+      // running as an orphan holding the port. Have the backend watch this PID
+      // itself and exit the moment it's gone, however that happens.
+      GRABBR_PARENT_PID: String(process.pid),
     };
     if (gdl) env.GRABBR_GDL_BIN = gdl;
     console.log('[grabbr] gallery-dl:', gdl || '(falling back to PATH)');
