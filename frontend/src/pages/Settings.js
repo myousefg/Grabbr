@@ -131,51 +131,6 @@ export default function Settings() {
         )}
       </Section>
 
-      <Section label={t('settings.appearance')}>
-        <Row title={t('settings.theme')}>
-          <Select value={theme} onValueChange={v => { setTheme(v); update({ theme: v }); }}>
-            <SelectTrigger className="w-36" data-testid="theme-select"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="light">{t('settings.light')}</SelectItem>
-              <SelectItem value="dark">{t('settings.dark')}</SelectItem>
-              <SelectItem value="system">{t('settings.system')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </Row>
-        <Row title={t('settings.language')}>
-          <Select value={lang} onValueChange={v => { setLang(v); update({ language: v }); }}>
-            <SelectTrigger className="w-36" data-testid="lang-select"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="en">English</SelectItem>
-              <SelectItem value="id">Bahasa Indonesia</SelectItem>
-            </SelectContent>
-          </Select>
-        </Row>
-        <Row title={t('settings.startWithWindows')} desc={t('settings.startWithWindowsDesc')}>
-          <Switch checked={!!s.autostart} onCheckedChange={setAutostart} disabled={!isElectron} />
-        </Row>
-        {!isElectron && <p className="px-4 pb-3 -mt-2 text-[11px] text-muted-foreground">{t('settings.autoStartElectronOnly')}</p>}
-        <Row title={t('settings.notifications')} desc={t('settings.notificationsDesc')}>
-          <Switch
-            checked={s.notifications_enabled ?? true}
-            onCheckedChange={v => update({ notifications_enabled: v })}
-          />
-        </Row>
-      </Section>
-
-      <Section
-        label={t('settings.tools')}
-        aside={outdatedTools.length > 0 && (
-          <Button size="sm" variant="outline" onClick={updateAllTools} disabled={toolsBusy}>
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateAll')}
-          </Button>
-        )}
-      >
-        <ToolRow name="gallery-dl" tool={tools['gallery-dl']} live={liveTools['gallery-dl']} onInstall={installTool} t={t} />
-        <ToolRow name="ffmpeg" tool={tools['ffmpeg']} live={liveTools['ffmpeg']} onInstall={installTool} t={t} />
-        <ToolRow name="yt-dlp" tool={tools['yt-dlp']} live={liveTools['yt-dlp']} onInstall={installTool} t={t} />
-      </Section>
-
       {env && (
         <Section label={t('settings.files')}>
           <Row title={t('settings.dataFolder')} desc={t('settings.dataFolderDesc')}>
@@ -223,6 +178,51 @@ export default function Settings() {
           </div>
         </Section>
       )}
+
+      <Section label={t('settings.appearance')}>
+        <Row title={t('settings.theme')}>
+          <Select value={theme} onValueChange={v => { setTheme(v); update({ theme: v }); }}>
+            <SelectTrigger className="w-36" data-testid="theme-select"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">{t('settings.light')}</SelectItem>
+              <SelectItem value="dark">{t('settings.dark')}</SelectItem>
+              <SelectItem value="system">{t('settings.system')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row title={t('settings.language')}>
+          <Select value={lang} onValueChange={v => { setLang(v); update({ language: v }); }}>
+            <SelectTrigger className="w-36" data-testid="lang-select"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="id">Bahasa Indonesia</SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row title={t('settings.startWithWindows')} desc={t('settings.startWithWindowsDesc')}>
+          <Switch checked={!!s.autostart} onCheckedChange={setAutostart} disabled={!isElectron} />
+        </Row>
+        {!isElectron && <p className="px-4 pb-3 -mt-2 text-[11px] text-muted-foreground">{t('settings.autoStartElectronOnly')}</p>}
+        <Row title={t('settings.notifications')} desc={t('settings.notificationsDesc')}>
+          <Switch
+            checked={s.notifications_enabled ?? true}
+            onCheckedChange={v => update({ notifications_enabled: v })}
+          />
+        </Row>
+      </Section>
+
+      <Section
+        label={t('settings.tools')}
+        aside={outdatedTools.length > 0 && (
+          <Button size="sm" variant="outline" onClick={updateAllTools} disabled={toolsBusy}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateAll')}
+          </Button>
+        )}
+      >
+        <ToolRow name="gallery-dl" tool={tools['gallery-dl']} live={liveTools['gallery-dl']} onInstall={installTool} t={t} />
+        <ToolRow name="ffmpeg" tool={tools['ffmpeg']} live={liveTools['ffmpeg']} onInstall={installTool} t={t} />
+        <ToolRow name="yt-dlp" tool={tools['yt-dlp']} live={liveTools['yt-dlp']} onInstall={installTool} t={t} />
+      </Section>
 
       <Section label={t('settings.about')}>
         <Row title="Grabbr" desc={t('settings.aboutTagline')}>

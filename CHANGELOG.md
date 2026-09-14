@@ -3,6 +3,22 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.1.2] - 2026-09-14
+
+### Fixed
+- The crash watchdog added in 1.1.1 could restart a backend that hadn't actually crashed (the
+  packaged backend can briefly double-launch on a fresh build), eventually giving up and showing
+  "couldn't be restarted" even though a working backend was still running; it now checks whether
+  something is already answering on the port before acting
+- A backend left over from a prior session (e.g. Grabbr closed via Task Manager instead of a
+  normal quit) could keep holding its port with a stale security token no new session could ever
+  match, leaving the sidebar stuck on "Offline" with no way to recover; every launch now clears
+  anything already on the port first, and the backend now exits itself the instant Grabbr's own
+  process is gone, by any means
+
+### Changed
+- Settings section order is Engine, Files, Appearance, Tools, About, Legal
+
 ## [1.1.1] - 2026-09-14
 
 ### Fixed
