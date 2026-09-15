@@ -62,6 +62,17 @@ console.log(`[grabbr] mode=${DEV ? 'DEV' : 'PROD'}`);
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 
+// electron-updater hardcodes its download cache to %LOCALAPPDATA%, a
+// different folder than Grabbr's own data (%APPDATA%\Grabbr). Grabbr keeps
+// everything in one folder so uninstall / "delete my data" is a single,
+// obvious step, so redirect the cache there too. baseCachePath has no
+// setter (it's a getter on the adapter's prototype), so it's overridden
+// per-instance instead of reassigned.
+Object.defineProperty(autoUpdater.app, 'baseCachePath', {
+  value: app.getPath('userData'),
+  configurable: true,
+});
+
 // electron-updater has no logger wired up by default, so a failed check has
 // never had anywhere to leave a trace beyond the one-line error message
 // already shown in Settings - no way to see the actual HTTP request/response
