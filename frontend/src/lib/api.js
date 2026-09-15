@@ -51,6 +51,11 @@ export const envApi = {
   clearCache: () => api.post('/cache/clear').then(r => r.data),
 };
 
+export const configOverridesApi = {
+  get:    ()           => api.get('/config/overrides').then(r => r.data),
+  update: (overrides)  => api.put('/config/overrides', { overrides }).then(r => r.data),
+};
+
 export const toolsApi = {
   list:    ()     => api.get('/tools').then(r => r.data),
   install: (name) => api.post(`/tools/${name}/install`).then(r => r.data),

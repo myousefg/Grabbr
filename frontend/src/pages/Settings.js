@@ -24,7 +24,7 @@ import { useI18n } from '@/context/I18nProvider';
 import { useTheme } from '@/context/ThemeProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
-import { toolsApi, envApi, extensionApi } from '@/lib/api';
+import { toolsApi, envApi, extensionApi, configOverridesApi } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
 import { snappy } from '@/lib/motion';
 
@@ -37,6 +37,39 @@ export default function Settings() {
   const [showCfg, setShowCfg] = useState(false);
   const [cfg, setCfg] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const [showOverrides, setShowOverrides] = useState(false);
+  const [overridesText, setOverridesText] = useState(null); // null = not loaded yet
+  const [overridesSaved, setOverridesSaved] = useState(null);
+  const [overridesError, setOverridesError] = useState('');
+  const [overridesSaving, setOverridesSaving] = useState(false);
+  const overridesDirty = overridesText !== null && overridesText !== overridesSaved;
+  const openOverrides = () => {
+    setShowOverrides(v => !v);
+    if (overridesText === null) {
+      configOverridesApi.get().then(({ overrides }) => {
+        let pretty = overrides;
+        try { pretty = JSON.stringify(JSON.parse(overrides), null, 2); } catch { /* show raw as-is */ }
+        setOverridesText(pretty);
+        setOverridesSaved(pretty);
+      }).catch(() => { setOverridesText('{}'); setOverridesSaved('{}'); });
+    }
+  };
+  const saveOverrides = async () => {
+    setOverridesSaving(true);
+    setOverridesError('');
+    try {
+      await configOverridesApi.update(overridesText);
+      setOverridesSaved(overridesText);
+      toast.success(t('settings.saved'));
+      if (cfg) envApi.config().then(setCfg).catch(() => {});
+    } catch (e) {
+      setOverridesError(e?.response?.data?.detail || t('settings.configEditorInvalid'));
+    } finally {
+      setOverridesSaving(false);
+    }
+  };
+  const resetOverrides = () => { setOverridesText(overridesSaved); setOverridesError(''); };
 
   const loadTools = () => toolsApi.list().then(setTools).catch(() => {});
   useEffect(() => { loadTools(); }, []);
@@ -253,6 +286,46 @@ export default function Settings() {
                   <pre className="mt-2 max-h-64 overflow-auto rounded border border-border bg-muted/30 p-2 text-[11px] font-mono">
                     {cfg ? JSON.stringify(cfg, null, 2) : '…'}
                   </pre>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          <div className="p-4 border-t border-border">
+            <button onClick={openOverrides}
+              className="text-xs underline text-muted-foreground hover:text-foreground">
+              {showOverrides ? t('settings.hideConfigEditor') : t('settings.editConfig')}
+            </button>
+            <AnimatePresence initial={false}>
+              {showOverrides && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={snappy}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <p className="text-xs text-muted-foreground leading-relaxed mt-2 mb-2 max-w-xl">
+                    {t('settings.configEditorDesc')}
+                  </p>
+                  <textarea
+                    value={overridesText ?? ''}
+                    onChange={e => { setOverridesText(e.target.value); setOverridesError(''); }}
+                    spellCheck={false}
+                    placeholder={t('settings.configEditorPlaceholder')}
+                    className="w-full h-48 rounded border border-border bg-muted/30 p-2 text-[11px] font-mono leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  {overridesError && (
+                    <p className="text-xs text-destructive mt-1.5 font-mono whitespace-pre-wrap">{overridesError}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <Button size="sm" onClick={saveOverrides} disabled={overridesSaving || !overridesDirty}>
+                      {overridesSaving && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                      {t('settings.configEditorSave')}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={resetOverrides} disabled={!overridesDirty || overridesSaving}>
+                      {t('settings.configEditorReset')}
+                    </Button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

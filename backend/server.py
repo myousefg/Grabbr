@@ -400,6 +400,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
             ("settings", "default_range", "TEXT DEFAULT ''"),
             ("settings", "notifications_enabled", "INTEGER DEFAULT 1"),
             ("settings", "extension_secret", "TEXT DEFAULT ''"),
+            ("settings", "gdl_overrides", "TEXT DEFAULT '{}'"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
             ("jobs", "files_json", "TEXT DEFAULT '[]'"),
         ]:
@@ -512,9 +513,33 @@ def build_gdl_config(settings: dict, sites: List[dict]) -> dict:
     return {"extractor": ex, "cache": {"file": str(CACHE_PATH)}}
 
 
+def _deep_merge(base: dict, override: dict) -> dict:
+    """Recursively layer `override` on top of `base`. A dict key present on
+    both sides merges field-by-field (so a custom filter on one extractor
+    doesn't wipe out the username/cookies Grabbr's own Settings generated for
+    it); anything else the override provides simply wins."""
+    result = dict(base)
+    for k, v in override.items():
+        if isinstance(v, dict) and isinstance(result.get(k), dict):
+            result[k] = _deep_merge(result[k], v)
+        else:
+            result[k] = v
+    return result
+
+
+def get_gdl_overrides() -> dict:
+    try:
+        raw = get_settings().get("gdl_overrides") or "{}"
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
 def write_gdl_config():
     try:
         cfg = build_gdl_config(get_settings(), get_sites())
+        cfg = _deep_merge(cfg, get_gdl_overrides())
         CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     except Exception as e:
         log.error("could not write gallery-dl config: %s", e)
@@ -1528,6 +1553,10 @@ class VerifyIn(BaseModel):
     probe_url: str
 
 
+class ConfigOverridesIn(BaseModel):
+    overrides: str  # raw JSON text, validated on write
+
+
 class CookieImportIn(BaseModel):
     path: Optional[str] = None   # a local cookies.txt to copy in
     text: Optional[str] = None   # or raw Netscape text
@@ -1774,6 +1803,37 @@ def read_config():
         return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+
+# Power-user escape hatch: Grabbr's own Settings only cover a slice of what
+# gallery-dl's config supports (per-extractor filters, postprocessors, custom
+# headers, sites with no dedicated UI, ...). These are stored separately from
+# the generated config and layered on top of it in write_gdl_config(), so a
+# custom override survives the next time any Settings change regenerates the
+# base file instead of being silently clobbered by it.
+@api.get("/config/overrides")
+def read_config_overrides():
+    settings = get_settings()
+    raw = settings.get("gdl_overrides") or "{}"
+    try:
+        json.loads(raw)
+    except Exception:
+        raw = "{}"
+    return {"overrides": raw}
+
+
+@api.put("/config/overrides")
+def write_config_overrides(body: ConfigOverridesIn):
+    raw = body.overrides.strip() or "{}"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise HTTPException(400, f"Invalid JSON: {e.msg} (line {e.lineno}, column {e.colno})")
+    if not isinstance(parsed, dict):
+        raise HTTPException(400, "Must be a JSON object, e.g. {\"extractor\": {...}}")
+    db_run("UPDATE settings SET gdl_overrides=? WHERE id='singleton'", (json.dumps(parsed),))
+    write_gdl_config()
+    return read_config()
 
 
 @api.post("/cache/clear")
