@@ -3,6 +3,28 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] - 2026-09-15
+
+### Added
+- Animation and visual-depth pass: route transitions, expandable panels (cookie/login rows,
+  Advanced settings, job logs), and button/switch presses now animate with spring-based motion;
+  cards and dialogs get a subtle elevation shadow instead of a flat 1px border
+- Browser extension (Chrome/Edge, same machine only): send the current tab or a right-clicked
+  link straight to Grabbr from the browser's toolbar button or context menu, paired to the app
+  with a one-time code generated from Settings
+- Custom gallery-dl config editor (Settings, Files): edit raw JSON overrides for anything
+  Grabbr's own UI doesn't expose (per-site filters, postprocessors, custom headers); the
+  overrides are layered on top of the generated config, so they survive normal settings changes
+  instead of being overwritten
+
+### Changed
+- Settings section order: Files now comes right after Engine, ahead of Appearance
+- Accessibility pass: keyboard focus now reaches every settings row (an info-tooltip button was
+  previously unreachable by Tab), disclosure panels expose `aria-expanded`/`aria-controls`,
+  icon-only buttons and bare inputs get proper labels, status changes are announced through ARIA
+  live regions, and right-to-left locales (Arabic, Hebrew, Persian, Urdu) no longer mis-mirror
+  icon spacing and floated elements
+
 ## [1.1.3] - 2026-09-15
 
 ### Added
