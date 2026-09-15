@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check, RefreshCw, Trash2, ChevronDown,
-  Puzzle, Copy, ShieldOff, Plus,
+  Puzzle, Copy, ShieldOff, Plus, Github,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ import { useTheme } from '@/context/ThemeProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
 import { toolsApi, envApi, extensionApi, configOverridesApi, presetsApi } from '@/lib/api';
-import { isElectron } from '@/lib/electron';
+import { isElectron, openExternal } from '@/lib/electron';
 import { snappy } from '@/lib/motion';
 
 export default function Settings() {
@@ -421,7 +421,21 @@ export default function Settings() {
       </Section>
 
       <Section label={t('settings.about')}>
-        <Row title="Grabbr" desc={t('settings.aboutTagline')}>
+        <Row
+          title={
+            <span className="inline-flex items-center gap-1.5">
+              Grabbr
+              <button
+                type="button" onClick={() => openExternal('https://github.com/myousefg/Grabbr')}
+                title={t('settings.aboutRepo')} aria-label={t('settings.aboutRepo')}
+                className="text-muted-foreground/50 hover:text-muted-foreground"
+              >
+                <Github className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </span>
+          }
+          desc={t('settings.aboutTagline')}
+        >
           <span className="text-xs font-mono text-muted-foreground">{env?.app_version || '…'}</span>
           {isElectron && (
             <div aria-live="polite">
@@ -520,6 +534,13 @@ function AppUpdateControl({ appUpdate, onCheck, t }) {
   );
 }
 
+const TOOL_REPO_URL = {
+  'gallery-dl': 'https://github.com/mikf/gallery-dl',
+  'ffmpeg': 'https://github.com/FFmpeg/FFmpeg',
+  'yt-dlp': 'https://github.com/yt-dlp/yt-dlp',
+  'aria2c': 'https://github.com/aria2/aria2',
+};
+
 function ToolRow({ name, tool, live, onInstall, t, desc }) {
   const status = live?.status || tool?.progress?.status;
   const busy = status === 'downloading' || status === 'installing';
@@ -558,10 +579,21 @@ function ToolRow({ name, tool, live, onInstall, t, desc }) {
     <div className="p-4 flex items-start justify-between gap-6">
       <div className="min-w-0">
         <p className="text-sm font-medium">
-          {name}
-          {tool?.source === 'path' && avail !== 'install' && (
-            <span className="ms-2 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">on PATH</span>
-          )}
+          <span className="inline-flex items-center gap-1.5">
+            {name}
+            {TOOL_REPO_URL[name] && (
+              <button
+                type="button" onClick={() => openExternal(TOOL_REPO_URL[name])}
+                title={t('settings.toolRepo', { name })} aria-label={t('settings.toolRepo', { name })}
+                className="text-muted-foreground/50 hover:text-muted-foreground"
+              >
+                <Github className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            )}
+            {tool?.source === 'path' && avail !== 'install' && (
+              <span className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">on PATH</span>
+            )}
+          </span>
           {desc && <span className="block text-xs font-normal text-muted-foreground mt-0.5">{desc}</span>}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{statusLine}</p>

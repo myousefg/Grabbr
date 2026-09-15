@@ -62,6 +62,26 @@ console.log(`[grabbr] mode=${DEV ? 'DEV' : 'PROD'}`);
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = false;
 
+// electron-updater has no logger wired up by default, so a failed check has
+// never had anywhere to leave a trace beyond the one-line error message
+// already shown in Settings - no way to see the actual HTTP request/response
+// electron-updater made. This writes its own debug log (which is fairly
+// verbose - request URLs, resolved versions, HTTP status) to a plain file
+// instead of pulling in a dependency just for this.
+const UPDATER_LOG_PATH = path.join(app.getPath('userData'), 'updater.log');
+function logUpdater(level, args) {
+  try {
+    const msg = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    fs.appendFileSync(UPDATER_LOG_PATH, `[${new Date().toISOString()}] [${level}] ${msg}\n`);
+  } catch { /* best-effort */ }
+}
+autoUpdater.logger = {
+  info:  (...a) => logUpdater('info', a),
+  warn:  (...a) => logUpdater('warn', a),
+  error: (...a) => logUpdater('error', a),
+  debug: (...a) => logUpdater('debug', a),
+};
+
 function sendUpdateStatus(payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('app-update-status', payload);
 }
