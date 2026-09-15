@@ -83,7 +83,7 @@ export default function Settings() {
   const installTool = (name) => toolsApi.install(name).catch(() => {});
 
   const toolAvail = (name) => tools[name]?.avail || (tools[name]?.found ? 'installed' : 'install');
-  const outdatedTools = ['gallery-dl', 'ffmpeg', 'yt-dlp'].filter(n => ['install', 'update'].includes(toolAvail(n)));
+  const outdatedTools = ['gallery-dl', 'ffmpeg', 'yt-dlp', 'aria2c'].filter(n => ['install', 'update'].includes(toolAvail(n)));
   const toolsBusy = Object.values(liveTools).some(x => x?.status === 'downloading' || x?.status === 'installing');
   const updateAllTools = () => outdatedTools.forEach(installTool);
 
@@ -415,6 +415,7 @@ export default function Settings() {
         <ToolRow name="gallery-dl" tool={tools['gallery-dl']} live={liveTools['gallery-dl']} onInstall={installTool} t={t} />
         <ToolRow name="ffmpeg" tool={tools['ffmpeg']} live={liveTools['ffmpeg']} onInstall={installTool} t={t} />
         <ToolRow name="yt-dlp" tool={tools['yt-dlp']} live={liveTools['yt-dlp']} onInstall={installTool} t={t} />
+        <ToolRow name="aria2c" tool={tools['aria2c']} live={liveTools['aria2c']} onInstall={installTool} t={t} desc={t('settings.aria2cDesc')} />
       </Section>
 
       <Section label={t('settings.about')}>
@@ -500,8 +501,13 @@ function AppUpdateControl({ appUpdate, onCheck, t }) {
   }
   if (status === 'error') {
     return (
-      <button type="button" onClick={onCheck} className="inline-flex items-center gap-1 text-[11px] text-destructive hover:underline">
-        <RefreshCw className="w-3 h-3" /> {t('settings.updateFailed')}
+      <button
+        type="button" onClick={onCheck}
+        title={appUpdate.error || t('settings.updateFailed')}
+        className="inline-flex items-center gap-1 text-[11px] text-destructive hover:underline"
+      >
+        <RefreshCw className="w-3 h-3" aria-hidden="true" /> {t('settings.updateFailed')}
+        {appUpdate.error && <span className="text-muted-foreground font-mono">&nbsp;&middot; {appUpdate.error.slice(0, 60)}</span>}
       </button>
     );
   }
@@ -512,7 +518,7 @@ function AppUpdateControl({ appUpdate, onCheck, t }) {
   );
 }
 
-function ToolRow({ name, tool, live, onInstall, t }) {
+function ToolRow({ name, tool, live, onInstall, t, desc }) {
   const status = live?.status || tool?.progress?.status;
   const busy = status === 'downloading' || status === 'installing';
   const avail = tool?.avail || (tool?.found ? 'installed' : 'install');
@@ -551,6 +557,7 @@ function ToolRow({ name, tool, live, onInstall, t }) {
           {tool?.source === 'path' && avail !== 'install' && (
             <span className="ms-2 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">on PATH</span>
           )}
+          {desc && <span className="block text-xs font-normal text-muted-foreground mt-0.5">{desc}</span>}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{statusLine}</p>
         {busy && (

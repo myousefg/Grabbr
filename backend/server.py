@@ -102,6 +102,12 @@ def ytdlp_bin() -> str:
     )
 
 
+def aria2c_bin() -> Optional[str]:
+    """None (not just a fallback name) when absent, since callers use this to
+    decide whether to hand yt-dlp off to aria2c at all."""
+    return tool_path("aria2c") or shutil.which("aria2c") or shutil.which("aria2c.exe")
+
+
 def sub_env() -> dict:
     """Env for gallery-dl subprocesses: tools/ on PATH so a downloaded
     ffmpeg / yt-dlp is found without extra config."""
@@ -694,6 +700,13 @@ def build_ytdlp_argv(url: str, settings: dict, options: Optional[dict], print_to
         argv += ["--proxy", str(settings["proxy"]).strip()]
     if settings.get("rate_limit"):
         argv += ["-r", str(settings["rate_limit"])]
+
+    # aria2c splits a single video into parallel connections instead of one
+    # sequential HTTP stream - a real speedup on the large single files a
+    # YouTube pull actually is. Same "if it's there, use it" rule as ffmpeg:
+    # no separate setting, just install it from Settings > Tools.
+    if aria2c_bin():
+        argv += ["--downloader", "aria2c", "--downloader-args", "aria2c:-x16 -s16 -k1M"]
 
     argv.append(url)
     return argv
@@ -1390,6 +1403,9 @@ def latest_version(name: str) -> Optional[str]:
         return _gh_latest_tag("yt-dlp/yt-dlp")
     if name == "ffmpeg":
         return _ffmpeg_latest()
+    if name == "aria2c":
+        tag = _gh_latest_tag("aria2/aria2")   # e.g. "release-1.37.0"
+        return tag.rsplit("-", 1)[-1] if tag else None
     return None
 
 
@@ -1403,14 +1419,29 @@ def _ffmpeg_version(exe: str) -> str:
         return ""
 
 
+def _aria2c_version(exe: str) -> str:
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=10,
+                             creationflags=CREATE_NO_WINDOW)
+        m = re.search(r"aria2 version ([\d.]+)", out.stdout or "")
+        return m.group(1) if m else ""
+    except Exception:
+        return ""
+
+
 def find_tool(name: str) -> dict:
-    """Resolution + version + update state. name: gallery-dl | ffmpeg | yt-dlp"""
+    """Resolution + version + update state. name: gallery-dl | ffmpeg | yt-dlp | aria2c"""
     downloaded = tool_path(name)
     on_path = shutil.which(name) or shutil.which(name + ".exe")
     exe = downloaded or on_path
     ver = ""
     if exe:
-        ver = _ffmpeg_version(exe) if name == "ffmpeg" else _run_version(exe)
+        if name == "ffmpeg":
+            ver = _ffmpeg_version(exe)
+        elif name == "aria2c":
+            ver = _aria2c_version(exe)
+        else:
+            ver = _run_version(exe)
     latest = latest_version(name)
     if not exe:
         avail = "install"
@@ -1436,7 +1467,9 @@ def tool_present(name: str) -> bool:
     return bool(tool_path(name)) or shutil.which(name) is not None or shutil.which(name + ".exe") is not None
 
 
-# name -> (url, kind). kind "exe" = save directly; "zip" = extract bin/*.exe
+# name -> (url, kind). kind "exe" = save directly; "zip" = extract per
+# ZIP_EXTRACT_PATTERNS below. url is None where the release asset name embeds
+# a version number and has to be resolved at install time (see aria2c below).
 # gallery-dl: gdl-org 64-bit build (the project's own release exe is 32-bit and
 # needs the VC++ x86 redistributable).
 TOOL_SOURCES = {
@@ -1446,10 +1479,39 @@ TOOL_SOURCES = {
         "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "exe"),
     "ffmpeg": (
         "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", "zip"),
+    "aria2c": (None, "zip"),
 }
-TOOL_APPROX_MB = {"gallery-dl": 23, "yt-dlp": 18, "ffmpeg": 110}
+TOOL_APPROX_MB = {"gallery-dl": 23, "yt-dlp": 18, "ffmpeg": 110, "aria2c": 6}
+
+ZIP_EXTRACT_PATTERNS = {
+    "ffmpeg": r"/bin/(ffmpeg|ffprobe)\.exe$",
+    "aria2c": r"/aria2c\.exe$",
+}
 
 _tool_state: Dict[str, dict] = {}   # name -> {status, pct, error}
+
+
+def _resolve_aria2c_url() -> str:
+    """aria2's release assets embed the version in the filename (no fixed
+    "latest/download/..." link like gdl-org/yt-dlp offer), so the win-64bit
+    zip has to be found via the releases API instead."""
+    import urllib.request
+
+    def fetch():
+        req = urllib.request.Request(
+            "https://api.github.com/repos/aria2/aria2/releases/latest",
+            headers={"User-Agent": "Grabbr", "Accept": "application/vnd.github+json"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            data = json.loads(r.read())
+        for asset in data.get("assets", []):
+            if re.search(r"win-64bit.*\.zip$", asset.get("name", "")):
+                return asset["browser_download_url"]
+        return None
+    url = _cached_fetch("aria2c:asset_url", fetch)
+    if not url:
+        raise RuntimeError("could not find an aria2c Windows build in the latest release")
+    return url
 
 
 def _install_tool_blocking(name: str, loop):
@@ -1458,6 +1520,11 @@ def _install_tool_blocking(name: str, loop):
     import tempfile
 
     url, kind = TOOL_SOURCES[name]
+    if url is None:
+        url = _resolve_aria2c_url() if name == "aria2c" else None
+    if not url:
+        _tool_state[name] = {"status": "error", "error": f"no download source for '{name}'"}
+        return
     _tool_state[name] = {"status": "downloading", "pct": 0}
 
     def emit(**kw):
@@ -1492,8 +1559,9 @@ def _install_tool_blocking(name: str, loop):
             dest = TOOLS_DIR / f"{name}{_EXE}"
             shutil.move(str(tmp), str(dest))
         else:
+            pattern = ZIP_EXTRACT_PATTERNS.get(name, r"/bin/(ffmpeg|ffprobe)\.exe$")
             with zipfile.ZipFile(tmp) as z:
-                members = [m for m in z.namelist() if re.search(r"/bin/(ffmpeg|ffprobe)\.exe$", m)]
+                members = [m for m in z.namelist() if re.search(pattern, m)]
                 for m in members:
                     data = z.read(m)
                     out_name = m.rsplit("/", 1)[-1]
@@ -1645,6 +1713,7 @@ def env_info():
         "gallery_dl_version": gdl_version(),
         "ffmpeg": tool_present("ffmpeg"),
         "yt_dlp": tool_present("yt-dlp"),
+        "aria2c": tool_present("aria2c"),
         "data_dir": str(BASE_DIR),
         "tools_dir": str(TOOLS_DIR),
         "cookies_dir": str(COOKIES_DIR),
@@ -1717,7 +1786,7 @@ def cookies_delete(name: str):
 @api.get("/tools")
 def list_tools():
     out = {}
-    for name in ("gallery-dl", "yt-dlp", "ffmpeg"):
+    for name in ("gallery-dl", "yt-dlp", "ffmpeg", "aria2c"):
         info = find_tool(name)
         info["approx_mb"] = TOOL_APPROX_MB.get(name)
         info["progress"] = _tool_state.get(name, {})

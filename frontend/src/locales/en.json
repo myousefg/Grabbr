@@ -202,6 +202,7 @@
     "extensionDisableConfirm": "Disable the browser extension?",
     "extensionDisableConfirmDesc": "The extension will no longer be able to send downloads to Grabbr until you enable it again.",
     "tools": "TOOLS",
+    "aria2cDesc": "Optional. Splits large downloads into parallel connections for faster YouTube pulls.",
     "updateAll": "Update all",
     "updateCheck": "Check for updates",
     "updateChecking": "Checking for updates…",
