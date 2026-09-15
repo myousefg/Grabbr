@@ -9,7 +9,7 @@ gallery, profile, or tag-search URLs and watch them download with a live queue, 
 a streaming log, a searchable history, per-site logins, and a one-click tool installer. No command
 line, no hand-editing a JSON config.
 
-[![Version](https://img.shields.io/badge/version-1.1.3-blue?style=flat-square)](https://github.com/myousefg/Grabbr/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue?style=flat-square)](https://github.com/myousefg/Grabbr/releases/latest)
 [![Platform](https://img.shields.io/badge/platform-Windows-blue?style=flat-square)](#)
 [![Stack](https://img.shields.io/badge/stack-Electron%20%2B%20React%20%2B%20Python-informational?style=flat-square)](#)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -74,7 +74,7 @@ command line.
 
 **Windows 10 or 11, 64-bit.**
 
-1. Download **`Grabbr-Setup-1.1.3.exe`** from the
+1. Download **`Grabbr-Setup-1.2.0.exe`** from the
    [latest release](https://github.com/myousefg/Grabbr/releases/latest).
 2. Run it. Because the build is not code-signed, Windows SmartScreen may show a blue warning:
    click **More info**, then **Run anyway**.
@@ -90,7 +90,7 @@ inside the app (Settings, Tools) only if you grab video.
   delete `%APPDATA%\Grabbr` afterwards. Your downloaded media is never in there, it stays in the
   download folder you chose.
 - **Verify the download (optional):** each release also ships `checksum.txt`; compare it with
-  `Get-FileHash Grabbr-Setup-1.1.3.exe` in PowerShell.
+  `Get-FileHash Grabbr-Setup-1.2.0.exe` in PowerShell.
 
 Want to build it yourself instead? See [Building the installer](#building-the-installer).
 
@@ -332,7 +332,7 @@ Runs, in order:
 0. fetch-gdl        ->  bin\gallery-dl.exe (if missing)
 1. PyInstaller      ->  backend\dist\grabbr-backend.exe
 2. yarn build       ->  frontend\build\
-3. electron-builder ->  dist\Grabbr-Setup-1.1.3.exe + checksum.txt
+3. electron-builder ->  dist\Grabbr-Setup-1.2.0.exe + checksum.txt
 ```
 
 Both `grabbr-backend.exe` and `bin\gallery-dl.exe` ship as `extraResources`. Keep the version in
