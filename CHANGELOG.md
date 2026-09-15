@@ -3,6 +3,35 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] - 2026-09-15
+
+### Added
+- Accelerated YouTube downloads: install aria2c from Settings > Tools and yt-dlp picks it up
+  automatically for faster, multi-connection downloads
+- Pause and resume: pause a running download and pick it back up later from where it left off
+- Named presets: save a set of options (Settings > Files) and pick one from a new dropdown on
+  the Dashboard for any job, without changing your global settings
+- One-click import of Twitter/X bookmarks
+- Browser extension: the toolbar button now opens a small popup showing the link before it
+  sends, with the same quality/format picker as the Dashboard for YouTube links
+- macOS and Linux builds, in addition to Windows
+
+### Changed
+- Settings > Tools now links each tool (gallery-dl, yt-dlp, FFmpeg, aria2c) to its GitHub project
+- README rewritten to be clearer for new users
+- Auto-update now logs what it checked to a file, and keeps its cache inside Grabbr's own data
+  folder instead of a separate one Windows manages
+
+### Fixed
+- Retrying or resuming a job twice in quick succession could start two overlapping runs of the
+  same download
+- Installing aria2c silently stopped your configured download-speed limit from applying to
+  YouTube downloads
+- Pausing a job and immediately stopping it right after could be misreported as paused instead
+  of canceled
+- The preview shown before downloading could disagree with what a selected preset actually
+  downloads
+
 ## [1.2.0] - 2026-09-15
 
 ### Added
