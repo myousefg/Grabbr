@@ -38,14 +38,38 @@ async function sendUrls(urls, options) {
   }
 }
 
+// Lets the popup show connection state as soon as it opens, instead of only
+// finding out whether pairing works when the user hits Send. Reuses the same
+// /api/extension/ping the options page already checks a pasted code with.
+async function checkConnection() {
+  const secret = await getSecret();
+  if (!secret) return { ok: false, reason: 'not-paired' };
+  try {
+    const res = await fetch(`${API_HOST}/api/extension/ping`, {
+      headers: { 'X-Grabbr-Extension-Token': secret },
+    });
+    if (res.status === 401) return { ok: false, reason: 'unauthorized' };
+    if (!res.ok) return { ok: false, reason: 'error' };
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: 'offline' };
+  }
+}
+
 // The popup runs in its own context (MV3 has no shared module scope between
-// it and this service worker), so it reaches sendUrls through a message
-// instead of a direct call - this also keeps the pairing secret out of the
-// popup's own code entirely.
+// it and this service worker), so it reaches sendUrls/checkConnection
+// through a message instead of a direct call - this also keeps the pairing
+// secret out of the popup's own code entirely.
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg?.type !== 'send') return false;
-  sendUrls(msg.urls, msg.options).then(sendResponse);
-  return true; // keep the message channel open for the async sendResponse
+  if (msg?.type === 'send') {
+    sendUrls(msg.urls, msg.options).then(sendResponse);
+    return true; // keep the message channel open for the async sendResponse
+  }
+  if (msg?.type === 'status') {
+    checkConnection().then(sendResponse);
+    return true;
+  }
+  return false;
 });
 
 const BADGE = {

@@ -18,10 +18,31 @@ const qualityEl = document.getElementById('quality');
 const formatEl = document.getElementById('format');
 const sendBtn = document.getElementById('send');
 const statusEl = document.getElementById('status');
+const connEl = document.getElementById('conn');
+const connTextEl = document.getElementById('conn-text');
 
 function setStatus(text, kind) {
   statusEl.textContent = text;
   statusEl.className = kind || '';
+}
+
+const CONN_MESSAGES = {
+  'not-paired': ['Not connected', 'warn'],
+  offline: ["Grabbr isn't running", 'bad'],
+  unauthorized: ['Pairing revoked, reconnect below', 'bad'],
+  error: ['Something went wrong', 'bad'],
+};
+
+async function refreshConnection() {
+  const result = await chrome.runtime.sendMessage({ type: 'status' });
+  if (result?.ok) {
+    connEl.className = 'ok';
+    connTextEl.textContent = 'Connected';
+    return;
+  }
+  const [text, kind] = CONN_MESSAGES[result?.reason] || CONN_MESSAGES.error;
+  connEl.className = kind;
+  connTextEl.textContent = text;
 }
 
 let currentUrl = '';
@@ -33,6 +54,7 @@ async function init() {
   urlEl.textContent = sendable ? currentUrl : "This page can't be sent to Grabbr.";
   sendBtn.disabled = !sendable;
   ytRow.hidden = !isYoutube(currentUrl);
+  refreshConnection();
 }
 
 sendBtn.addEventListener('click', async () => {
