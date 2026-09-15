@@ -3,7 +3,7 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [1.1.3] - 2026-09-14
+## [1.1.3] - 2026-09-15
 
 ### Added
 - YouTube downloads: paste a YouTube link and it routes through yt-dlp instead of gallery-dl
@@ -12,6 +12,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - GIF conversion: a Twitter/X "GIF" is really a looping MP4; Grabbr now detects that (via
   gallery-dl's own metadata, not a guess) and converts it to a real `.gif` with FFmpeg
   automatically, no setting required
+- Full language support: 45 languages with a searchable picker (Settings, Appearance), automatic
+  system-locale detection on first launch (falls back to English), lazy-loaded locale bundles so
+  unused languages never hit the bundle, and right-to-left layout for Arabic, Hebrew, Persian, and
+  Urdu
 
 ### Fixed
 - Cancel could leave a yt-dlp process orphaned and still running: the watchdog killed the
