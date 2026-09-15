@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -35,6 +35,7 @@ export default function JobCard({ job }) {
   const { logs, cancel, retry, remove, setJobOpen } = useJobs();
   const [open, setOpen] = useState(false);
   const [fullLog, setFullLog] = useState(null);
+  const logPanelId = useId();
 
   const live = logs[job.id] || [];
   const active = job.status === 'running' || job.status === 'queued';
@@ -59,22 +60,24 @@ export default function JobCard({ job }) {
   return (
     <div className="border border-border rounded-lg p-4 space-y-3 surface-elevated" data-testid={`job-${job.id}`}>
       <div className="flex items-start gap-3">
-        <AnimatePresence mode="wait">
-          <motion.span
-            key={job.status}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={snappy}
-            className={`text-[10px] font-medium tracking-[0.15em] px-2 py-1 rounded ${STATUS_STYLE[job.status] || ''}`}
-          >
-            {t(`dashboard.status.${job.status}`)}
-          </motion.span>
-        </AnimatePresence>
+        <div aria-live="polite" role="status">
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={job.status}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={snappy}
+              className={`text-[10px] font-medium tracking-[0.15em] px-2 py-1 rounded ${STATUS_STYLE[job.status] || ''}`}
+            >
+              {t(`dashboard.status.${job.status}`)}
+            </motion.span>
+          </AnimatePresence>
+        </div>
         <div className="min-w-0 flex-1">
           <p className="font-mono text-xs break-all leading-relaxed">{job.url}</p>
         </div>
-        {job.status === 'running' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />}
+        {job.status === 'running' && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" aria-hidden="true" />}
       </div>
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground font-mono">
@@ -118,34 +121,35 @@ export default function JobCard({ job }) {
       <div className="flex items-center gap-2 flex-wrap">
         {active && (
           <Button size="sm" variant="ghost" onClick={() => cancel(job.id)} data-testid="job-cancel">
-            <X className="w-3.5 h-3.5 mr-1" /> {t('dashboard.cancel')}
+            <X className="w-3.5 h-3.5 me-1" /> {t('dashboard.cancel')}
           </Button>
         )}
         {!active && (
           <>
             <Button size="sm" variant="ghost" onClick={() => retry(job.id)} data-testid="job-retry">
-              <RotateCcw className="w-3.5 h-3.5 mr-1" /> {t('dashboard.retry')}
+              <RotateCcw className="w-3.5 h-3.5 me-1" /> {t('dashboard.retry')}
             </Button>
             {isElectron && job.dest_dir && (
               <Button size="sm" variant="ghost" onClick={openFolder}>
-                <FolderOpen className="w-3.5 h-3.5 mr-1" /> {t('dashboard.openFolder')}
+                <FolderOpen className="w-3.5 h-3.5 me-1" /> {t('dashboard.openFolder')}
               </Button>
             )}
             <Button size="sm" variant="ghost" onClick={() => remove(job.id)} data-testid="job-remove">
-              <Trash2 className="w-3.5 h-3.5 mr-1" /> {t('dashboard.remove')}
+              <Trash2 className="w-3.5 h-3.5 me-1" /> {t('dashboard.remove')}
             </Button>
           </>
         )}
-        <Button size="sm" variant="ghost" onClick={toggleLog} className="ml-auto">
-          <Terminal className="w-3.5 h-3.5 mr-1" />
+        <Button size="sm" variant="ghost" onClick={toggleLog} className="ms-auto" aria-expanded={open} aria-controls={logPanelId}>
+          <Terminal className="w-3.5 h-3.5 me-1" aria-hidden="true" />
           {open ? t('dashboard.hideLog') : t('dashboard.log')}
-          <ChevronDown className={`w-3.5 h-3.5 ml-1 transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3.5 h-3.5 ms-1 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
         </Button>
       </div>
 
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
+            id={logPanelId}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

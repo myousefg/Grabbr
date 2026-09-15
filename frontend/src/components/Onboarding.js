@@ -50,7 +50,7 @@ export default function Onboarding({ open, onClose }) {
         <DialogHeader>
           <div className="flex items-center gap-2.5">
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden="true" />
             </span>
             <DialogTitle className="tracking-tight">{t(`onboarding.${step.key}.title`)}</DialogTitle>
           </div>
@@ -59,10 +59,11 @@ export default function Onboarding({ open, onClose }) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex items-center justify-center gap-1.5 py-1">
+        <div className="flex items-center justify-center gap-1.5 py-1" role="img" aria-label={t('onboarding.stepCount', { current: i + 1, total: STEPS.length })}>
           {STEPS.map((s, idx) => (
             <span
               key={s.key}
+              aria-hidden="true"
               className={`h-1.5 rounded-full transition-all ${idx === i ? 'w-4 bg-primary' : 'w-1.5 bg-muted-foreground/30'}`}
             />
           ))}

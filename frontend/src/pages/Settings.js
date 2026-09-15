@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -37,6 +37,9 @@ export default function Settings() {
   const [showCfg, setShowCfg] = useState(false);
   const [cfg, setCfg] = useState(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const advancedPanelId = useId();
+  const cfgPanelId = useId();
+  const overridesPanelId = useId();
 
   const [showOverrides, setShowOverrides] = useState(false);
   const [overridesText, setOverridesText] = useState(null); // null = not loaded yet
@@ -174,14 +177,17 @@ export default function Settings() {
         <button
           type="button"
           onClick={() => setShowAdvanced(v => !v)}
+          aria-expanded={showAdvanced}
+          aria-controls={advancedPanelId}
           className="w-full flex items-center justify-between p-4 text-left hover:bg-accent/50 transition-colors"
         >
           <span className="text-sm font-medium">{t('settings.advanced')}</span>
-          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvanced ? 'rotate-180' : ''}`} aria-hidden="true" />
         </button>
         <AnimatePresence initial={false}>
           {showAdvanced && (
             <motion.div
+              id={advancedPanelId}
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -240,16 +246,16 @@ export default function Settings() {
           <Row title={t('settings.dataFolder')} desc={t('settings.dataFolderDesc')}>
             <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[280px] block">{env.data_dir}</code>
             {isElectron && (
-              <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(env.data_dir)} title={t('settings.openFolder')}>
-                <FolderOpen className="w-4 h-4" />
+              <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(env.data_dir)} title={t('settings.openFolder')} aria-label={t('settings.openFolder')}>
+                <FolderOpen className="w-4 h-4" aria-hidden="true" />
               </Button>
             )}
           </Row>
           <Row title={t('settings.downloadsFolder')}>
             <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[280px] block">{env.output_dir}</code>
             {isElectron && (
-              <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(env.output_dir)} title={t('settings.openFolder')}>
-                <FolderOpen className="w-4 h-4" />
+              <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(env.output_dir)} title={t('settings.openFolder')} aria-label={t('settings.openFolder')}>
+                <FolderOpen className="w-4 h-4" aria-hidden="true" />
               </Button>
             )}
           </Row>
@@ -257,26 +263,28 @@ export default function Settings() {
             <Row title={t('settings.cookiesFolder')} desc={t('settings.cookiesFolderInfo')}>
               <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[280px] block">{env.cookies_dir}</code>
               {isElectron && (
-                <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(env.cookies_dir)} title={t('settings.openFolder')}>
-                  <FolderOpen className="w-4 h-4" />
+                <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(env.cookies_dir)} title={t('settings.openFolder')} aria-label={t('settings.openFolder')}>
+                  <FolderOpen className="w-4 h-4" aria-hidden="true" />
                 </Button>
               )}
             </Row>
           )}
           <Row title={t('settings.clearCache')} desc={t('settings.clearCacheDesc')}>
             <Button variant="outline" size="sm" onClick={clearCache} disabled={cacheClearing}>
-              {cacheClearing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 mr-1.5" />}
+              {cacheClearing ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 me-1.5" />}
               {t('settings.clearCache')}
             </Button>
           </Row>
           <div className="p-4">
             <button onClick={() => { setShowCfg(v => !v); if (!cfg) envApi.config().then(setCfg).catch(() => setCfg({})); }}
+              aria-expanded={showCfg} aria-controls={cfgPanelId}
               className="text-xs underline text-muted-foreground hover:text-foreground">
               {showCfg ? t('settings.hideConfig') : t('settings.viewConfig')}
             </button>
             <AnimatePresence initial={false}>
               {showCfg && (
                 <motion.div
+                  id={cfgPanelId}
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
@@ -292,19 +300,21 @@ export default function Settings() {
           </div>
           <div className="p-4 border-t border-border">
             <button onClick={openOverrides}
+              aria-expanded={showOverrides} aria-controls={overridesPanelId}
               className="text-xs underline text-muted-foreground hover:text-foreground">
               {showOverrides ? t('settings.hideConfigEditor') : t('settings.editConfig')}
             </button>
             <AnimatePresence initial={false}>
               {showOverrides && (
                 <motion.div
+                  id={overridesPanelId}
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
                   transition={snappy}
                   style={{ overflow: 'hidden' }}
                 >
-                  <p className="text-xs text-muted-foreground leading-relaxed mt-2 mb-2 max-w-xl">
+                  <p id={`${overridesPanelId}-desc`} className="text-xs text-muted-foreground leading-relaxed mt-2 mb-2 max-w-xl">
                     {t('settings.configEditorDesc')}
                   </p>
                   <textarea
@@ -312,6 +322,8 @@ export default function Settings() {
                     onChange={e => { setOverridesText(e.target.value); setOverridesError(''); }}
                     spellCheck={false}
                     placeholder={t('settings.configEditorPlaceholder')}
+                    aria-label={t('settings.editConfig')}
+                    aria-describedby={`${overridesPanelId}-desc`}
                     className="w-full h-48 rounded border border-border bg-muted/30 p-2 text-[11px] font-mono leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                   {overridesError && (
@@ -319,7 +331,7 @@ export default function Settings() {
                   )}
                   <div className="flex items-center gap-2 mt-2">
                     <Button size="sm" onClick={saveOverrides} disabled={overridesSaving || !overridesDirty}>
-                      {overridesSaving && <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />}
+                      {overridesSaving && <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" />}
                       {t('settings.configEditorSave')}
                     </Button>
                     <Button size="sm" variant="ghost" onClick={resetOverrides} disabled={!overridesDirty || overridesSaving}>
@@ -337,18 +349,18 @@ export default function Settings() {
         label={t('settings.extension')}
         aside={extSecret ? (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {t('settings.extensionConnected')}
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" /> {t('settings.extensionConnected')}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" /> {t('settings.extensionDisabled')}
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" aria-hidden="true" /> {t('settings.extensionDisabled')}
           </span>
         )}
       >
         {!extSecret ? (
           <Row title={t('settings.extensionEnable')} desc={t('settings.extensionEnableDesc')}>
             <Button size="sm" onClick={enableExtension} disabled={extBusy || extSecret === null}>
-              {extBusy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Puzzle className="w-3.5 h-3.5 mr-1.5" />}
+              {extBusy ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" aria-hidden="true" /> : <Puzzle className="w-3.5 h-3.5 me-1.5" aria-hidden="true" />}
               {t('settings.extensionEnable')}
             </Button>
           </Row>
@@ -356,20 +368,24 @@ export default function Settings() {
           <>
             <Row title={t('settings.extensionCode')} desc={t('settings.extensionCodeDesc', { folder: 'extension/' })}>
               <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[220px] block">{extSecret}</code>
-              <Button variant="outline" size="icon" onClick={copyExtensionSecret} title={t('settings.extensionCopy')}>
-                {extCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              <Button
+                variant="outline" size="icon" onClick={copyExtensionSecret}
+                title={t('settings.extensionCopy')}
+                aria-label={extCopied ? t('settings.extensionCopied') : t('settings.extensionCopy')}
+              >
+                {extCopied ? <Check className="w-4 h-4" aria-hidden="true" /> : <Copy className="w-4 h-4" aria-hidden="true" />}
               </Button>
             </Row>
             <Row title={t('settings.extensionRegenerate')} desc={t('settings.extensionRegenerateDesc')}>
               <Button variant="outline" size="sm" onClick={enableExtension} disabled={extBusy}>
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('settings.extensionRegenerate')}
+                <RefreshCw className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.extensionRegenerate')}
               </Button>
             </Row>
             <Row title={t('settings.extensionDisable')}>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={extBusy}>
-                    <ShieldOff className="w-3.5 h-3.5 mr-1.5" /> {t('settings.extensionDisable')}
+                    <ShieldOff className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.extensionDisable')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -392,7 +408,7 @@ export default function Settings() {
         label={t('settings.tools')}
         aside={outdatedTools.length > 0 && (
           <Button size="sm" variant="outline" onClick={updateAllTools} disabled={toolsBusy}>
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateAll')}
+            <RefreshCw className="w-3.5 h-3.5 me-1.5" /> {t('settings.updateAll')}
           </Button>
         )}
       >
@@ -404,7 +420,11 @@ export default function Settings() {
       <Section label={t('settings.about')}>
         <Row title="Grabbr" desc={t('settings.aboutTagline')}>
           <span className="text-xs font-mono text-muted-foreground">{env?.app_version || '…'}</span>
-          {isElectron && <AppUpdateControl appUpdate={appUpdate} onCheck={checkForAppUpdate} t={t} />}
+          {isElectron && (
+            <div aria-live="polite">
+              <AppUpdateControl appUpdate={appUpdate} onCheck={checkForAppUpdate} t={t} />
+            </div>
+          )}
         </Row>
         <Row title={t('settings.components')} desc={t('settings.componentsDesc')}>
           <div className="text-right text-xs font-mono text-muted-foreground space-y-0.5">
@@ -457,7 +477,7 @@ function AppUpdateControl({ appUpdate, onCheck, t }) {
   if (status === 'downloaded') {
     return (
       <Button size="sm" variant="default" onClick={() => window.electronAPI.installAppUpdate()}>
-        <Download className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateRestart')}
+        <Download className="w-3.5 h-3.5 me-1.5" /> {t('settings.updateRestart')}
       </Button>
     );
   }
@@ -466,7 +486,7 @@ function AppUpdateControl({ appUpdate, onCheck, t }) {
       <span className="inline-flex items-center gap-2">
         <span className="text-[11px] text-amber-600 dark:text-amber-400">{t('settings.updateAvail', { version })}</span>
         <Button size="sm" variant="outline" onClick={() => window.electronAPI.downloadAppUpdate()}>
-          <Download className="w-3.5 h-3.5 mr-1.5" /> {t('settings.updateDownload')}
+          <Download className="w-3.5 h-3.5 me-1.5" /> {t('settings.updateDownload')}
         </Button>
       </span>
     );
@@ -529,7 +549,7 @@ function ToolRow({ name, tool, live, onInstall, t }) {
         <p className="text-sm font-medium">
           {name}
           {tool?.source === 'path' && avail !== 'install' && (
-            <span className="ml-2 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">on PATH</span>
+            <span className="ms-2 text-[10px] uppercase tracking-[0.1em] text-muted-foreground">on PATH</span>
           )}
         </p>
         <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{statusLine}</p>
@@ -548,7 +568,7 @@ function ToolRow({ name, tool, live, onInstall, t }) {
       <div className="shrink-0">
         {btn.show && (
           <Button size="sm" variant={btn.variant} onClick={() => onInstall(name)} disabled={busy}>
-            {busy ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Download className="w-3.5 h-3.5 mr-1" />}
+            {busy ? <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" /> : <Download className="w-3.5 h-3.5 me-1" />}
             {btn.label}
           </Button>
         )}

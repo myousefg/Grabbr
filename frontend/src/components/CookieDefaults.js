@@ -51,12 +51,12 @@ export default function CookieDefaults({ browsers = [], ck, onReload }) {
           {ck?.dir || '…'}
         </code>
         {isElectron && ck?.dir && (
-          <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(ck.dir)} title={t('settings.openFolder')}>
-            <FolderOpen className="w-4 h-4" />
+          <Button variant="outline" size="icon" onClick={() => window.electronAPI.openPath(ck.dir)} title={t('settings.openFolder')} aria-label={t('settings.openFolder')}>
+            <FolderOpen className="w-4 h-4" aria-hidden="true" />
           </Button>
         )}
-        <Button variant="outline" size="icon" onClick={onReload} title={t('settings.cookiesFolderRescan')}>
-          <RefreshCw className="w-4 h-4" />
+        <Button variant="outline" size="icon" onClick={onReload} title={t('settings.cookiesFolderRescan')} aria-label={t('settings.cookiesFolderRescan')}>
+          <RefreshCw className="w-4 h-4" aria-hidden="true" />
         </Button>
       </Row>
       <div className="p-4 -mt-2 text-xs text-muted-foreground space-y-1">

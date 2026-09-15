@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useId, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -27,7 +27,7 @@ function TierBadge({ auth, required }) {
 }
 
 function StateDot({ configured }) {
-  return <span className={`w-1.5 h-1.5 rounded-full ${configured ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} />;
+  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${configured ? 'bg-emerald-500' : 'bg-muted-foreground/30'}`} aria-hidden="true" />;
 }
 
 function coversDomain(domains, domain) {
@@ -53,6 +53,7 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
   const [d, setD] = useState({});
   const [busy, setBusy] = useState(false);
   const [verify, setVerify] = useState(null);
+  const panelId = useId();
 
   useEffect(() => {
     setD({
@@ -155,20 +156,24 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
     <div className="border border-border rounded-lg" data-testid={`site-${site.id}`}>
       <button
         onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
         className="w-full flex items-center gap-3 p-3.5 text-left hover:bg-accent/50 transition-colors rounded-lg"
       >
         <StateDot configured={configured} />
+        <span className="sr-only">{configured ? t('sites.configured') : t('sites.notConfigured')}</span>
         <span className="text-sm font-medium">{site.name}</span>
         <span className="font-mono text-[11px] text-muted-foreground">{site.domain}</span>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ms-auto flex items-center gap-2">
           <TierBadge auth={site.auth} required={site.required} />
-          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
         </div>
       </button>
 
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
+            id={panelId}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -189,18 +194,18 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
               <div className="flex items-center gap-2 flex-wrap">
                 {isElectron && (
                   <Button variant="outline" size="sm" onClick={uploadCookies} disabled={busy}>
-                    {busy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1.5" />}
+                    {busy ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> : <Upload className="w-3.5 h-3.5 me-1.5" />}
                     {uploadedFile ? t('sites.replaceCookies') : t('sites.uploadCookies')}
                   </Button>
                 )}
                 {uploadedFile && (
                   <Button variant="ghost" size="sm" onClick={removeUploaded} disabled={busy}>
-                    <Trash2 className="w-3.5 h-3.5 mr-1.5" /> {t('sites.removeCookies')}
+                    <Trash2 className="w-3.5 h-3.5 me-1.5" /> {t('sites.removeCookies')}
                   </Button>
                 )}
                 {site.probe && (
                   <Button size="sm" variant="outline" onClick={runVerify} disabled={verify?.loading}>
-                    {verify?.loading && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}{t('sites.verify')}
+                    {verify?.loading && <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" />}{t('sites.verify')}
                   </Button>
                 )}
                 {verify && !verify.loading && (
@@ -224,9 +229,9 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
             <>
               <div className="grid grid-cols-2 gap-2 pt-1 max-w-md">
                 <Input value={d.username} onChange={e => setD(s => ({ ...s, username: e.target.value }))}
-                  placeholder={t('sites.username')} autoComplete="off" />
+                  placeholder={t('sites.username')} aria-label={t('sites.username')} autoComplete="off" />
                 <Input type="password" value={d.password} onChange={e => setD(s => ({ ...s, password: e.target.value }))}
-                  placeholder={t('sites.password')} autoComplete="off" />
+                  placeholder={t('sites.password')} aria-label={t('sites.password')} autoComplete="off" />
               </div>
               <RowActions {...{ busy, save: saveUserpass, verify, runVerify, probe: site.probe, configured, clearSite, t }} />
             </>
@@ -237,7 +242,7 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
             <div className="space-y-2 pt-1">
               {site.auth === 'oauth-instance' && (
                 <Input value={d.instance} onChange={e => setD(s => ({ ...s, instance: e.target.value }))}
-                  placeholder="mastodon.social" className="w-64 font-mono text-xs" />
+                  placeholder="mastodon.social" aria-label={t('sites.instanceLabel')} className="w-64 font-mono text-xs" />
               )}
               {configured && !ev && (
                 <p className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400">
@@ -266,17 +271,17 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
               )}
               <div className="flex items-center gap-2 pt-1">
                 <Button size="sm" onClick={authorize} disabled={busy || (ev && !ev.done)}>
-                  {busy || (ev && !ev.done) ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5 mr-1" />}
+                  {busy || (ev && !ev.done) ? <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5 me-1" />}
                   {configured ? t('sites.reauthorize') : t('sites.authorize')}
                 </Button>
                 {ev && !ev.done && (
                   <Button size="sm" variant="ghost" onClick={() => sitesApi.cancelOauth(site.id).then(() => clearOauth(site.id))}>
-                    <X className="w-3.5 h-3.5 mr-1" /> {t('common.cancel')}
+                    <X className="w-3.5 h-3.5 me-1" /> {t('common.cancel')}
                   </Button>
                 )}
                 {configured && !(ev && !ev.done) && (
                   <Button size="sm" variant="ghost" onClick={clearSite}>
-                    <Trash2 className="w-3.5 h-3.5 mr-1" /> {t('sites.clear')}
+                    <Trash2 className="w-3.5 h-3.5 me-1" /> {t('sites.clear')}
                   </Button>
                 )}
               </div>
@@ -292,10 +297,10 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
                 </button>
               )}
               <Input value={d.refresh_token} onChange={e => setD(s => ({ ...s, refresh_token: e.target.value }))}
-                placeholder="refresh-token" className="w-full max-w-lg font-mono text-xs" />
+                placeholder="refresh-token" aria-label={t('sites.refreshTokenLabel')} className="w-full max-w-lg font-mono text-xs" />
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={savePixiv} disabled={busy || !d.refresh_token.trim()}>{t('sites.save')}</Button>
-                {configured && <Button size="sm" variant="ghost" onClick={clearSite}><Trash2 className="w-3.5 h-3.5 mr-1" />{t('sites.clear')}</Button>}
+                {configured && <Button size="sm" variant="ghost" onClick={clearSite}><Trash2 className="w-3.5 h-3.5 me-1" />{t('sites.clear')}</Button>}
               </div>
             </div>
           )}
@@ -311,16 +316,16 @@ function RowActions({ busy, save, verify, runVerify, probe, configured, clearSit
   return (
     <div className="flex items-center gap-2 flex-wrap">
       <Button size="sm" onClick={save} disabled={busy}>
-        {busy && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}{t('sites.save')}
+        {busy && <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" />}{t('sites.save')}
       </Button>
       {probe && (
         <Button size="sm" variant="outline" onClick={runVerify} disabled={verify?.loading}>
-          {verify?.loading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : null}{t('sites.verify')}
+          {verify?.loading ? <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" /> : null}{t('sites.verify')}
         </Button>
       )}
       {configured && (
         <Button size="sm" variant="ghost" onClick={clearSite}>
-          <Trash2 className="w-3.5 h-3.5 mr-1" /> {t('sites.clear')}
+          <Trash2 className="w-3.5 h-3.5 me-1" /> {t('sites.clear')}
         </Button>
       )}
       {verify && !verify.loading && (

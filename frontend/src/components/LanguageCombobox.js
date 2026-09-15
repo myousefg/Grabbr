@@ -28,7 +28,7 @@ export default function LanguageCombobox({ value, onValueChange, t }) {
           data-testid="lang-select"
         >
           <span className="truncate">{current ? current.native : t('settings.selectLanguage')}</span>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronsUpDown className="ms-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0">

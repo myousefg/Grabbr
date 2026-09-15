@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import { Download, Eye, Loader2, AlertTriangle, ClipboardPaste } from 'lucide-react';
@@ -66,6 +66,7 @@ export default function Dashboard() {
   const [preview, setPreview] = useState(null); // { url, options }
   const [quality, setQuality] = useState('best'); // YouTube only
   const [format, setFormat] = useState('mp4');  // YouTube only: mp4 | mp3
+  const urlInputId = useId();
 
   const urls = useMemo(() => splitUrls(text), [text]);
   const modeMismatch = mode !== 'auto' && urls.some(hasDedicatedExtractor);
@@ -144,7 +145,7 @@ export default function Dashboard() {
 
       {/* URL input */}
       <div className="space-y-3">
-        <label className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground block">
+        <label htmlFor={urlInputId} className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground block">
           {t('dashboard.inputLabel')}
         </label>
         <div
@@ -154,26 +155,27 @@ export default function Dashboard() {
           onDrop={onDrop}
         >
           <Textarea
+            id={urlInputId}
             value={text}
             onChange={e => setText(e.target.value)}
             placeholder={t('dashboard.urlPlaceholder')}
             rows={3}
-            className={`font-mono text-xs resize-none pr-24 transition-colors ${dragging ? 'ring-2 ring-ring border-ring' : ''}`}
+            className={`font-mono text-xs resize-none pe-24 transition-colors ${dragging ? 'ring-2 ring-ring border-ring' : ''}`}
             data-testid="url-input"
             onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') submit(urls); }}
           />
           <Button
             variant="outline" size="sm" onClick={paste} data-testid="paste-btn"
-            className="absolute top-2 right-2 h-7"
+            className="absolute top-2 end-2 h-7"
           >
-            <ClipboardPaste className="w-3.5 h-3.5 mr-1" /> {t('dashboard.paste')}
+            <ClipboardPaste className="w-3.5 h-3.5 me-1" /> {t('dashboard.paste')}
           </Button>
         </div>
 
         {/* Primary actions */}
         <div className="flex items-center gap-2 flex-wrap">
           <Button onClick={() => submit(urls)} disabled={busy || !urls.length} data-testid="download-btn">
-            {busy ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+            {busy ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Download className="w-4 h-4 me-2" />}
             {t('dashboard.add')}{urls.length > 1 ? ` (${urls.length})` : ''}
           </Button>
           <Button
@@ -185,7 +187,7 @@ export default function Dashboard() {
             disabled={busy || urls.length !== 1 || isYoutubeUrl(urls[0])}
             data-testid="preview-btn"
           >
-            <Eye className="w-4 h-4 mr-2" /> {t('dashboard.preview')}
+            <Eye className="w-4 h-4 me-2" /> {t('dashboard.preview')}
           </Button>
           {allYoutube && (
             <>
@@ -207,7 +209,7 @@ export default function Dashboard() {
             </>
           )}
           <Select value={mode} onValueChange={setMode}>
-            <SelectTrigger className="w-[190px] ml-auto" data-testid="mode-select"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-[190px] ms-auto" data-testid="mode-select"><SelectValue /></SelectTrigger>
             <SelectContent>
               {MODES.map(m => <SelectItem key={m} value={m}>{t(`dashboard.mode.${m}`)}</SelectItem>)}
             </SelectContent>
@@ -215,8 +217,8 @@ export default function Dashboard() {
         </div>
 
         {hasInvalidUrl && (
-          <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <p role="alert" className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
             {t('dashboard.invalidUrl')}
           </p>
         )}
@@ -224,8 +226,8 @@ export default function Dashboard() {
           <p className="text-xs text-muted-foreground">{t(`dashboard.modeHint.${mode}`)}</p>
         )}
         {modeMismatch && (
-          <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
-            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <p role="alert" className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden="true" />
             {t('dashboard.modeMismatch')}
           </p>
         )}

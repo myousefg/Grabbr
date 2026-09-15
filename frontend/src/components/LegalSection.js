@@ -26,7 +26,7 @@ const THIRD_PARTY = [
 
 function Body({ children }) {
   return (
-    <ScrollArea className="max-h-[60vh] pr-3">
+    <ScrollArea className="max-h-[60vh] pe-3">
       <div className="text-xs leading-relaxed text-muted-foreground space-y-3">{children}</div>
     </ScrollArea>
   );
@@ -42,17 +42,17 @@ export default function LegalSection() {
       <Section label={t('settings.legal')}>
         <Row title={t('settings.privacy')} desc={t('settings.privacyDesc')}>
           <Button variant="outline" size="sm" onClick={() => setDlg('privacy')}>
-            <Shield className="w-3.5 h-3.5 mr-1.5" /> {t('settings.read')}
+            <Shield className="w-3.5 h-3.5 me-1.5" /> {t('settings.read')}
           </Button>
         </Row>
         <Row title={t('settings.license')} desc={t('settings.licenseDesc')}>
           <Button variant="outline" size="sm" onClick={() => setDlg('license')}>
-            <ScrollText className="w-3.5 h-3.5 mr-1.5" /> {t('settings.read')}
+            <ScrollText className="w-3.5 h-3.5 me-1.5" /> {t('settings.read')}
           </Button>
         </Row>
         <Row title={t('settings.notices')} desc={t('settings.noticesDesc')}>
           <Button variant="outline" size="sm" onClick={() => setDlg('notices')}>
-            <Package className="w-3.5 h-3.5 mr-1.5" /> {t('settings.read')}
+            <Package className="w-3.5 h-3.5 me-1.5" /> {t('settings.read')}
           </Button>
         </Row>
       </Section>

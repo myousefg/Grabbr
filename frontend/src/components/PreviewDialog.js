@@ -121,11 +121,11 @@ export default function PreviewDialog({ url, options, open, onOpenChange, onConf
           )}
 
           {!loading && error && (
-            <div className="flex flex-col items-center gap-3 text-center py-8">
-              <AlertTriangle className="w-8 h-8 text-destructive/70" />
+            <div role="alert" className="flex flex-col items-center gap-3 text-center py-8">
+              <AlertTriangle className="w-8 h-8 text-destructive/70" aria-hidden="true" />
               <p className="font-mono text-xs text-muted-foreground max-w-sm break-all">{error}</p>
               <Button size="sm" variant="outline" onClick={runPreview}>
-                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('preview.retry')}
+                <RefreshCw className="w-3.5 h-3.5 me-1.5" /> {t('preview.retry')}
               </Button>
             </div>
           )}
@@ -136,7 +136,7 @@ export default function PreviewDialog({ url, options, open, onOpenChange, onConf
                 <span className="font-semibold">
                   {t('preview.found', { count, s: count === 1 ? '' : 's' })}
                   {data.truncated && (
-                    <span className="font-normal text-muted-foreground ml-1.5">
+                    <span className="font-normal text-muted-foreground ms-1.5">
                       ({t('preview.truncated', { count: data.files.length })})
                     </span>
                   )}
@@ -173,8 +173,8 @@ export default function PreviewDialog({ url, options, open, onOpenChange, onConf
                     </span>
                     <Button variant="ghost" size="sm" onClick={toggleAll} className="h-6 px-2 text-[11px]">
                       {allSelected
-                        ? <Square className="w-3 h-3 mr-1" />
-                        : <CheckSquare className="w-3 h-3 mr-1" />}
+                        ? <Square className="w-3 h-3 me-1" />
+                        : <CheckSquare className="w-3 h-3 me-1" />}
                       {allSelected ? t('preview.selectNone') : t('preview.selectAll')}
                     </Button>
                   </div>

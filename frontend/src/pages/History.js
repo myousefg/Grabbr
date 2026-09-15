@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import {
@@ -63,7 +63,7 @@ function Thumb({ f }) {
         />
       )}
       {f.kind === 'video' && !failed && (
-        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/60 p-0.5 leading-none">
+        <span className="absolute bottom-0.5 end-0.5 rounded bg-black/60 p-0.5 leading-none">
           <Film className="w-3 h-3 text-white" />
         </span>
       )}
@@ -78,6 +78,7 @@ function HistoryRow({ job }) {
   const [open, setOpen] = useState(false);
   const [log, setLog] = useState(null);
   const [files, setFiles] = useState(null);
+  const panelId = useId();
   const cooldown = useCooldownTick(job);
   const flagged = job.hint === 'auth' || job.hint === 'cookies_locked' || job.hint === 'rate_limited';
   // "One flat folder" (or any structure gallery-dl didn't subfolder) puts this
@@ -105,18 +106,20 @@ function HistoryRow({ job }) {
 
   return (
     <div className="border border-border rounded-md overflow-hidden surface-elevated" data-testid={`hist-${job.id}`}>
-      <button onClick={toggle} className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent/50 transition-colors">
-        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT[job.status] || 'bg-muted-foreground/40'}`} />
+      <button onClick={toggle} aria-expanded={open} aria-controls={panelId} className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent/50 transition-colors">
+        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT[job.status] || 'bg-muted-foreground/40'}`} aria-hidden="true" />
+        <span className="sr-only">{t(`dashboard.status.${job.status}`)}</span>
         <span className="font-mono text-xs truncate flex-1 min-w-0">{job.url}</span>
-        {flagged ? <KeyRound className="w-3.5 h-3.5 text-amber-500 shrink-0" /> : null}
+        {flagged ? <KeyRound className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-hidden="true" /> : null}
         <span className="text-[11px] text-muted-foreground font-mono shrink-0 hidden sm:block">{result}</span>
         <span className="text-[11px] text-muted-foreground shrink-0 w-8 text-right">{timeAgo(job.finished_at || job.created_at)}</span>
-        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
 
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
+            id={panelId}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -160,15 +163,15 @@ function HistoryRow({ job }) {
           )}
           <div className="flex items-center gap-1.5 flex-wrap">
             <Button size="sm" variant="ghost" onClick={() => retry(job.id)}>
-              <RotateCcw className="w-3.5 h-3.5 mr-1" /> {t('history.reDownload')}
+              <RotateCcw className="w-3.5 h-3.5 me-1" /> {t('history.reDownload')}
             </Button>
             {isElectron && job.dest_dir && (
               <Button size="sm" variant="ghost" onClick={() => window.electronAPI.openPath(job.dest_dir)}>
-                <FolderOpen className="w-3.5 h-3.5 mr-1" /> {t('history.openFolder')}
+                <FolderOpen className="w-3.5 h-3.5 me-1" /> {t('history.openFolder')}
               </Button>
             )}
             <Button size="sm" variant="ghost" onClick={() => remove(job.id)}>
-              <Trash2 className="w-3.5 h-3.5 mr-1" /> {t('history.remove')}
+              <Trash2 className="w-3.5 h-3.5 me-1" /> {t('history.remove')}
             </Button>
             {sharedDest ? (
               <Tooltip>
@@ -178,7 +181,7 @@ function HistoryRow({ job }) {
                     className="text-muted-foreground/50 hover:text-muted-foreground/50 hover:bg-transparent cursor-default"
                     onClick={() => toast.info(t('history.sharedFolderNote'))}
                   >
-                    <FolderX className="w-3.5 h-3.5 mr-1" /> {t('history.delete')}
+                    <FolderX className="w-3.5 h-3.5 me-1" /> {t('history.delete')}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="max-w-xs text-xs leading-relaxed">
@@ -193,7 +196,7 @@ function HistoryRow({ job }) {
                     className="text-destructive hover:text-destructive"
                     title={t('history.deleteConfirmDesc')}
                   >
-                    <FolderX className="w-3.5 h-3.5 mr-1" /> {t('history.delete')}
+                    <FolderX className="w-3.5 h-3.5 me-1" /> {t('history.delete')}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -261,9 +264,9 @@ export default function History() {
 
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Search className="w-4 h-4 absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={e => setQuery(e.target.value)} placeholder={t('history.search')}
-            className="pl-9 h-9" data-testid="history-search" />
+            className="ps-9 h-9" data-testid="history-search" />
         </div>
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-36 h-9" data-testid="history-status"><SelectValue /></SelectTrigger>
@@ -277,7 +280,7 @@ export default function History() {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button variant="outline" size="sm" className="h-9" disabled={!finished.length}>
-              <Trash2 className="w-4 h-4 mr-2" /> {t('history.clear')}
+              <Trash2 className="w-4 h-4 me-2" /> {t('history.clear')}
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>

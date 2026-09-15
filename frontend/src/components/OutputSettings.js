@@ -30,8 +30,8 @@ function TokenMenu({ tokens, text, onPick }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" title={t('settings.tokens.insert')}>
-          <Braces className="w-4 h-4" />
+        <Button variant="outline" size="icon" title={t('settings.tokens.insert')} aria-label={t('settings.tokens.insert')}>
+          <Braces className="w-4 h-4" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
@@ -75,8 +75,8 @@ export default function OutputSettings() {
           className="w-64 font-mono text-xs" data-testid="output-dir"
         />
         {isElectron && (
-          <Button variant="outline" size="icon" onClick={browseFolder} title={t('settings.browse')}>
-            <FolderOpen className="w-4 h-4" />
+          <Button variant="outline" size="icon" onClick={browseFolder} title={t('settings.browse')} aria-label={t('settings.browse')}>
+            <FolderOpen className="w-4 h-4" aria-hidden="true" />
           </Button>
         )}
       </Row>

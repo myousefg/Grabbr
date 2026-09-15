@@ -6,7 +6,9 @@
     "settings": "SETTINGS",
     "tagline": "MEDIA DOWNLOADER",
     "connected": "Connected",
-    "offline": "Offline"
+    "offline": "Offline",
+    "mainNav": "Main navigation",
+    "activeCount": "{{count}} active"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -281,6 +283,10 @@
     "cookieRemoved": "cookies.txt removed.",
     "username": "Username / email",
     "password": "Password",
+    "configured": "Configured",
+    "notConfigured": "Not configured",
+    "instanceLabel": "Instance domain",
+    "refreshTokenLabel": "Refresh token",
     "save": "Save",
     "verify": "Verify",
     "verifyOk": "Working. Files resolved",
@@ -300,6 +306,7 @@
     "howItWorks": "Instagram needs cookies for everything. Twitter needs them for NSFW / protected / rate-limited. Pixiv needs a refresh-token. The rest are optional but raise limits."
   },
   "onboarding": {
+    "stepCount": "Step {{current}} of {{total}}",
     "dontShow": "Don't show this again",
     "skip": "Skip",
     "back": "Back",
