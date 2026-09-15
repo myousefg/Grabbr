@@ -160,19 +160,32 @@ async function handleBackendExit(code, signal) {
 // Clear anything already on our port before spawning so every launch starts
 // from a clean, correctly-tokened backend.
 function killStaleBackend() {
-  if (process.platform !== 'win32') return;
   try {
-    const out = spawnSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true }).stdout || '';
-    const portPattern = new RegExp(`:${BACKEND_PORT}\\s`);
-    const pids = new Set();
-    for (const line of out.split('\n')) {
-      if (!portPattern.test(line) || !line.includes('LISTENING')) continue;
-      const m = line.trim().match(/(\d+)\s*$/);
-      if (m) pids.add(m[1]);
-    }
-    for (const pid of pids) {
-      console.warn(`[grabbr] Clearing stale process on port ${BACKEND_PORT} (PID ${pid})`);
-      spawnSync('taskkill', ['/F', '/T', '/PID', pid], { windowsHide: true });
+    if (process.platform === 'win32') {
+      const out = spawnSync('netstat', ['-ano'], { encoding: 'utf8', windowsHide: true }).stdout || '';
+      const portPattern = new RegExp(`:${BACKEND_PORT}\\s`);
+      const pids = new Set();
+      for (const line of out.split('\n')) {
+        if (!portPattern.test(line) || !line.includes('LISTENING')) continue;
+        const m = line.trim().match(/(\d+)\s*$/);
+        if (m) pids.add(m[1]);
+      }
+      for (const pid of pids) {
+        console.warn(`[grabbr] Clearing stale process on port ${BACKEND_PORT} (PID ${pid})`);
+        spawnSync('taskkill', ['/F', '/T', '/PID', pid], { windowsHide: true });
+      }
+    } else {
+      // lsof ships with macOS and most Linux desktops; if it's missing this
+      // is just a no-op like the Windows branch's own catch-all - startBackend's
+      // own timeout still catches a genuinely stuck bind either way.
+      const out = spawnSync('lsof', ['-t', '-i', `:${BACKEND_PORT}`, '-sTCP:LISTEN']).stdout?.toString() || '';
+      for (const line of out.split('\n')) {
+        const pid = line.trim();
+        if (!pid) continue;
+        console.warn(`[grabbr] Clearing stale process on port ${BACKEND_PORT} (PID ${pid})`);
+        try { process.kill(-Number(pid), 'SIGKILL'); }
+        catch { try { process.kill(Number(pid), 'SIGKILL'); } catch { /* already gone */ } }
+      }
     }
   } catch { /* best-effort; startBackend's own timeout still catches a stuck bind */ }
 }
@@ -204,7 +217,15 @@ function startBackend() {
     } else {
       const ext = process.platform === 'win32' ? '.exe' : '';
       const exe = path.join(process.resourcesPath, 'backend', `grabbr-backend${ext}`);
-      backendProc = spawn(exe, [], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+      // detached on POSIX makes this the leader of its own process group, so
+      // stopBackend() below can reap the PyInstaller onefile bootloader's
+      // real child (and anything it spawned) by killing the group - a plain
+      // kill() only ever hits the bootloader itself, the same orphaned-child
+      // problem the Windows taskkill /T branch there exists to avoid.
+      backendProc = spawn(exe, [], {
+        env, stdio: ['ignore', 'pipe', 'pipe'],
+        detached: process.platform !== 'win32',
+      });
     }
 
     backendProc.stdout?.on('data', d => console.log('[py]', d.toString().trim()));
@@ -242,6 +263,11 @@ function stopBackend() {
   // 8766, which breaks the next launch. Reap the whole tree.
   if (process.platform === 'win32' && pid) {
     try { spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { windowsHide: true }); }
+    catch { /* fall through to kill() */ }
+  } else if (pid) {
+    // Negative pid targets the whole process group spawn() made this the
+    // leader of (see the `detached` comment above).
+    try { process.kill(-pid, 'SIGKILL'); }
     catch { /* fall through to kill() */ }
   }
   try { backendProc.kill(); } catch { /* already gone */ }

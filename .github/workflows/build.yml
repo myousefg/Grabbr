@@ -1,0 +1,83 @@
+name: Build installers
+
+# Manual only, on purpose: this doesn't publish anything, it just builds an
+# installer per OS and attaches them to the run as downloadable artifacts, so
+# a build can be tried on a branch without touching Releases. Uploading to an
+# actual GitHub Release is still the manual step it already is (see README).
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to build"
+        required: false
+        default: ""
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            dist_script: dist
+            artifact_glob: |
+              dist/*.exe
+              dist/*.exe.blockmap
+              dist/latest.yml
+          - os: macos-latest
+            dist_script: dist:mac
+            artifact_glob: |
+              dist/*.dmg
+              dist/latest-mac.yml
+          - os: ubuntu-latest
+            dist_script: dist:linux
+            artifact_glob: |
+              dist/*.AppImage
+              dist/latest-linux.yml
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install root (Electron) dependencies
+        run: npm ci
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: yarn install --frozen-lockfile
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Build backend (PyInstaller)
+        run: npm run build:backend
+
+      - name: Build installer
+        run: npm run ${{ matrix.dist_script }} -- --publish never
+        env:
+          # Left unset here on purpose - macOS/Windows builds come out
+          # unsigned until real signing credentials are added as repo
+          # secrets and wired in above (CSC_LINK/CSC_KEY_PASSWORD for mac,
+          # a signtool cert for win). electron-builder already tolerates
+          # that; it's the same unsigned state the Windows build already
+          # ships in today (see the README's note on the Defender warning).
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: grabbr-${{ matrix.os }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error

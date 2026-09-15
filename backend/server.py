@@ -17,6 +17,7 @@ import ctypes
 import hashlib
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -71,6 +72,7 @@ PORT = int(os.environ.get("GRABBR_PORT", "8766"))
 
 GDL_BIN_ENV = os.environ.get("GRABBR_GDL_BIN") or ""
 _EXE = ".exe" if os.name == "nt" else ""
+CURRENT_OS = "windows" if os.name == "nt" else ("macos" if platform.system() == "Darwin" else "linux")
 
 # Keep console-subsystem children (gallery-dl.exe, ffmpeg, taskkill, ...) from
 # flashing a command window when the packaged GUI backend has no console itself.
@@ -878,10 +880,24 @@ class JobManager:
             except Exception:
                 pass
         else:
+            # start_new_session=True at launch (see _run/_run_ytdlp) made
+            # this process its own group leader, so killing the group
+            # (negative pid) reaps whatever it spawned too - a plain
+            # proc.kill() only ever hits the one PID Grabbr is tracking,
+            # leaving the same kind of orphaned grandchild the Windows
+            # side above already had to work around.
             import signal
             try:
-                proc.send_signal(signal.SIGINT)
+                pgid = os.getpgid(pid)
+            except Exception:
+                pgid = None
+            try:
+                os.killpg(pgid, signal.SIGINT) if pgid else proc.send_signal(signal.SIGINT)
                 await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            try:
+                os.killpg(pgid, signal.SIGKILL) if pgid else proc.kill()
             except Exception:
                 pass
             try:
@@ -971,6 +987,7 @@ class JobManager:
             proc = await asyncio.create_subprocess_exec(
                 *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
                 creationflags=creationflags, env=sub_env(), cwd=dest,
+                start_new_session=(os.name != "nt"),
             )
         except FileNotFoundError:
             db_run(
@@ -1141,6 +1158,7 @@ class JobManager:
             proc = await asyncio.create_subprocess_exec(
                 *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
                 creationflags=creationflags, env=sub_env(), cwd=dest,
+                start_new_session=(os.name != "nt"),
             )
         except FileNotFoundError:
             db_run(
@@ -1547,25 +1565,43 @@ def tool_present(name: str) -> bool:
     return bool(tool_path(name)) or shutil.which(name) is not None or shutil.which(name + ".exe") is not None
 
 
-# name -> (url, kind). kind "exe" = save directly; "zip" = extract per
-# ZIP_EXTRACT_PATTERNS below. url is None where the release asset name embeds
-# a version number and has to be resolved at install time (see aria2c below).
-# gallery-dl: gdl-org 64-bit build (the project's own release exe is 32-bit and
-# needs the VC++ x86 redistributable).
+# {tool: {os: (url, kind)}}. url is None where the release asset name embeds
+# a version number (aria2c) or there's no single combined archive for that
+# platform (macOS ffmpeg) and has to be resolved at install time instead.
+# kind: "exe" save as-is | "zip"/"tarxz" extract per ZIP_EXTRACT_PATTERNS |
+# "macos-ffmpeg-pair" two separate downloads, resolved together below.
+# gallery-dl: gdl-org builds (the project's own Windows release exe is
+# 32-bit and needs the VC++ x86 redistributable; gdl-org's doesn't).
 TOOL_SOURCES = {
-    "gallery-dl": (
-        "https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_windows.exe", "exe"),
-    "yt-dlp": (
-        "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "exe"),
-    "ffmpeg": (
-        "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", "zip"),
-    "aria2c": (None, "zip"),
+    "gallery-dl": {
+        "windows": ("https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_windows.exe", "exe"),
+        "linux":   ("https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_linux", "exe"),
+        "macos":   ("https://github.com/gdl-org/builds/releases/latest/download/gallery-dl_macos", "exe"),
+    },
+    "yt-dlp": {
+        "windows": ("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe", "exe"),
+        "linux":   ("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux", "exe"),
+        "macos":   ("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos", "exe"),
+    },
+    "ffmpeg": {
+        "windows": ("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", "zip"),
+        "linux":   ("https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"
+                    "ffmpeg-master-latest-linux64-gpl.tar.xz", "tarxz"),
+        "macos":   (None, "macos-ffmpeg-pair"),
+    },
+    "aria2c": {
+        "windows": (None, "zip"),
+        # No prebuilt Linux/macOS binary upstream (aria2's own releases only
+        # ship source tarballs there) - both already have aria2c one apt/
+        # brew install away, so aria2c_bin() picking it up off PATH is the
+        # supported path on those platforms, not this installer.
+    },
 }
 TOOL_APPROX_MB = {"gallery-dl": 23, "yt-dlp": 18, "ffmpeg": 110, "aria2c": 6}
 
 ZIP_EXTRACT_PATTERNS = {
-    "ffmpeg": r"/bin/(ffmpeg|ffprobe)\.exe$",
-    "aria2c": r"/aria2c\.exe$",
+    "ffmpeg": r"[\\/]bin[\\/](ffmpeg|ffprobe)(\.exe)?$",
+    "aria2c": r"[\\/]aria2c\.exe$",
 }
 
 _tool_state: Dict[str, dict] = {}   # name -> {status, pct, error}
@@ -1594,15 +1630,65 @@ def _resolve_aria2c_url() -> str:
     return url
 
 
-def _install_tool_blocking(name: str, loop):
+def _resolve_macos_ffmpeg_urls() -> dict:
+    """evermeet.cx publishes ffmpeg and ffprobe as two separate release
+    feeds rather than one combined archive the way gyan.dev (Windows) and
+    BtbN (Linux) do."""
     import urllib.request
+
+    def fetch(binary):
+        req = urllib.request.Request(
+            f"https://evermeet.cx/ffmpeg/info/{binary}/release",
+            headers={"User-Agent": "Grabbr"},
+        )
+        with urllib.request.urlopen(req, timeout=8) as r:
+            return json.loads(r.read())["download"]["zip"]["url"]
+    urls = {
+        "ffmpeg": _cached_fetch("ffmpeg:evermeet:ffmpeg", lambda: fetch("ffmpeg")),
+        "ffprobe": _cached_fetch("ffmpeg:evermeet:ffprobe", lambda: fetch("ffprobe")),
+    }
+    if not urls["ffmpeg"] or not urls["ffprobe"]:
+        raise RuntimeError("could not resolve a macOS ffmpeg build from evermeet.cx")
+    return urls
+
+
+def _download_to(url: str, dest: Path, on_progress=None):
+    import urllib.request
+
+    req = urllib.request.Request(url, headers={"User-Agent": "Grabbr"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        total = int(resp.headers.get("Content-Length") or 0)
+        got = 0
+        last = 0.0
+        with open(dest, "wb") as f:
+            while True:
+                buf = resp.read(262144)
+                if not buf:
+                    break
+                f.write(buf)
+                got += len(buf)
+                if on_progress and total and time.monotonic() - last > 0.4:
+                    last = time.monotonic()
+                    on_progress(round(got * 100 / total))
+
+
+def _install_tool_blocking(name: str, loop):
     import zipfile
+    import tarfile
     import tempfile
 
-    url, kind = TOOL_SOURCES[name]
+    sources = TOOL_SOURCES.get(name, {})
+    if CURRENT_OS not in sources:
+        _tool_state[name] = {"status": "error", "error": f"'{name}' has no one-click installer for {CURRENT_OS}"}
+        return
+    url, kind = sources[CURRENT_OS]
     if url is None:
-        url = _resolve_aria2c_url() if name == "aria2c" else None
-    if not url:
+        try:
+            url = _resolve_aria2c_url() if name == "aria2c" else None
+        except Exception as e:
+            _tool_state[name] = {"status": "error", "error": str(e)}
+            return
+    if not url and kind != "macos-ffmpeg-pair":
         _tool_state[name] = {"status": "error", "error": f"no download source for '{name}'"}
         return
     _tool_state[name] = {"status": "downloading", "pct": 0}
@@ -1615,37 +1701,58 @@ def _install_tool_blocking(name: str, loop):
         except Exception:
             pass
 
+    tmp_dir = Path(tempfile.gettempdir())
+
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "Grabbr"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            total = int(resp.headers.get("Content-Length") or 0)
-            suffix = ".zip" if kind == "zip" else _EXE
-            tmp = Path(tempfile.gettempdir()) / f"grabbr-{name}{suffix}"
-            got = 0
-            last = 0.0
-            with open(tmp, "wb") as f:
-                while True:
-                    buf = resp.read(262144)
-                    if not buf:
-                        break
-                    f.write(buf)
-                    got += len(buf)
-                    if total and time.monotonic() - last > 0.4:
-                        last = time.monotonic()
-                        emit(status="downloading", pct=round(got * 100 / total))
+        if kind == "macos-ffmpeg-pair":
+            urls = _resolve_macos_ffmpeg_urls()
+            for i, (binary, burl) in enumerate(urls.items()):
+                tmp = tmp_dir / f"grabbr-{binary}.zip"
+                _download_to(burl, tmp, lambda p: emit(status="downloading", pct=round((i * 100 + p) / len(urls))))
+                with zipfile.ZipFile(tmp) as z:
+                    members = [m for m in z.namelist() if m.rsplit("/", 1)[-1] == binary]
+                    for m in members:
+                        (TOOLS_DIR / binary).write_bytes(z.read(m))
+                tmp.unlink(missing_ok=True)
+                if os.name != "nt":
+                    os.chmod(TOOLS_DIR / binary, 0o755)
+            emit(status="done", pct=100)
+            return
+
+        suffix = {"zip": ".zip", "tarxz": ".tar.xz"}.get(kind, _EXE)
+        tmp = tmp_dir / f"grabbr-{name}{suffix}"
+        _download_to(url, tmp, lambda p: emit(status="downloading", pct=p))
 
         emit(status="installing", pct=100)
         if kind == "exe":
             dest = TOOLS_DIR / f"{name}{_EXE}"
             shutil.move(str(tmp), str(dest))
-        else:
-            pattern = ZIP_EXTRACT_PATTERNS.get(name, r"/bin/(ffmpeg|ffprobe)\.exe$")
+            if os.name != "nt":
+                os.chmod(dest, 0o755)
+        elif kind == "tarxz":
+            pattern = ZIP_EXTRACT_PATTERNS.get(name, r"[\\/]bin[\\/](ffmpeg|ffprobe)(\.exe)?$")
+            with tarfile.open(tmp, "r:xz") as t:
+                for m in t.getmembers():
+                    if not m.isfile() or not re.search(pattern, m.name):
+                        continue
+                    out_name = m.name.rsplit("/", 1)[-1]
+                    dest = TOOLS_DIR / out_name
+                    with t.extractfile(m) as src, open(dest, "wb") as f:
+                        f.write(src.read())
+                    if os.name != "nt":
+                        os.chmod(dest, 0o755)
+            tmp.unlink(missing_ok=True)
+        else:  # zip
+            pattern = ZIP_EXTRACT_PATTERNS.get(name, r"[\\/]bin[\\/](ffmpeg|ffprobe)(\.exe)?$")
             with zipfile.ZipFile(tmp) as z:
                 members = [m for m in z.namelist() if re.search(pattern, m)]
                 for m in members:
                     data = z.read(m)
                     out_name = m.rsplit("/", 1)[-1]
-                    (TOOLS_DIR / out_name).write_bytes(data)
+                    dest = TOOLS_DIR / out_name
+                    dest.write_bytes(data)
+                    if os.name != "nt":
+                        os.chmod(dest, 0o755)
             tmp.unlink(missing_ok=True)
 
         emit(status="done", pct=100)
