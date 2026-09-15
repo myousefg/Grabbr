@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
-import { Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
+import {
+  Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check, RefreshCw, Trash2, ChevronDown,
+  Puzzle, Copy, ShieldOff,
+} from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -9,6 +12,11 @@ import { Progress } from '@/components/ui/progress';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Section, Row } from '@/components/settingsUi';
 import LanguageCombobox from '@/components/LanguageCombobox';
 import LegalSection, { COPYRIGHT_YEAR, COPYRIGHT_HOLDER } from '@/components/LegalSection';
@@ -16,7 +24,7 @@ import { useI18n } from '@/context/I18nProvider';
 import { useTheme } from '@/context/ThemeProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
-import { toolsApi, envApi } from '@/lib/api';
+import { toolsApi, envApi, extensionApi } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
 import { snappy } from '@/lib/motion';
 
@@ -49,6 +57,32 @@ export default function Settings() {
     try { await envApi.clearCache(); toast.success(t('settings.cacheCleared')); }
     catch { toast.error(t('settings.clearCacheFailed')); }
     finally { setCacheClearing(false); }
+  };
+
+  const [extSecret, setExtSecret] = useState(null); // null = not loaded yet
+  const [extBusy, setExtBusy] = useState(false);
+  const [extCopied, setExtCopied] = useState(false);
+  useEffect(() => {
+    if (s && extSecret === null) setExtSecret(s.extension_secret || '');
+  }, [s, extSecret]);
+  const enableExtension = async () => {
+    setExtBusy(true);
+    try { setExtSecret((await extensionApi.enable()).extension_secret); }
+    catch { toast.error(t('settings.saveFailed')); }
+    finally { setExtBusy(false); }
+  };
+  const disableExtension = async () => {
+    setExtBusy(true);
+    try { setExtSecret((await extensionApi.disable()).extension_secret); }
+    catch { toast.error(t('settings.saveFailed')); }
+    finally { setExtBusy(false); }
+  };
+  const copyExtensionSecret = async () => {
+    try {
+      await navigator.clipboard.writeText(extSecret);
+      setExtCopied(true);
+      setTimeout(() => setExtCopied(false), 1500);
+    } catch { toast.error(t('settings.saveFailed')); }
   };
 
   const [appUpdate, setAppUpdate] = useState({ status: 'idle' });
@@ -225,6 +259,61 @@ export default function Settings() {
           </div>
         </Section>
       )}
+
+      <Section
+        label={t('settings.extension')}
+        aside={extSecret ? (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {t('settings.extensionConnected')}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40" /> {t('settings.extensionDisabled')}
+          </span>
+        )}
+      >
+        {!extSecret ? (
+          <Row title={t('settings.extensionEnable')} desc={t('settings.extensionEnableDesc')}>
+            <Button size="sm" onClick={enableExtension} disabled={extBusy || extSecret === null}>
+              {extBusy ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Puzzle className="w-3.5 h-3.5 mr-1.5" />}
+              {t('settings.extensionEnable')}
+            </Button>
+          </Row>
+        ) : (
+          <>
+            <Row title={t('settings.extensionCode')} desc={t('settings.extensionCodeDesc', { folder: 'extension/' })}>
+              <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[220px] block">{extSecret}</code>
+              <Button variant="outline" size="icon" onClick={copyExtensionSecret} title={t('settings.extensionCopy')}>
+                {extCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </Button>
+            </Row>
+            <Row title={t('settings.extensionRegenerate')} desc={t('settings.extensionRegenerateDesc')}>
+              <Button variant="outline" size="sm" onClick={enableExtension} disabled={extBusy}>
+                <RefreshCw className="w-3.5 h-3.5 mr-1.5" /> {t('settings.extensionRegenerate')}
+              </Button>
+            </Row>
+            <Row title={t('settings.extensionDisable')}>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" disabled={extBusy}>
+                    <ShieldOff className="w-3.5 h-3.5 mr-1.5" /> {t('settings.extensionDisable')}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t('settings.extensionDisableConfirm')}</AlertDialogTitle>
+                    <AlertDialogDescription>{t('settings.extensionDisableConfirmDesc')}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+                    <AlertDialogAction onClick={disableExtension}>{t('common.confirm')}</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </Row>
+          </>
+        )}
+      </Section>
 
       <Section
         label={t('settings.tools')}

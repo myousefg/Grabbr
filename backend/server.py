@@ -18,6 +18,7 @@ import hashlib
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -398,6 +399,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
             ("settings", "proxy", "TEXT DEFAULT ''"),
             ("settings", "default_range", "TEXT DEFAULT ''"),
             ("settings", "notifications_enabled", "INTEGER DEFAULT 1"),
+            ("settings", "extension_secret", "TEXT DEFAULT ''"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
             ("jobs", "files_json", "TEXT DEFAULT '[]'"),
         ]:
@@ -1569,6 +1571,21 @@ async def _local_guard(request: Request, call_next):
     if host and host not in ("127.0.0.1", "localhost"):
         return JSONResponse({"detail": "bad host"}, status_code=403)
     path = request.url.path
+    # The browser extension is a separate trust boundary from the Electron
+    # renderer: it has no way to receive the per-run GRABBR_TOKEN (that's only
+    # ever handed over via Electron's preload argv), and its requests carry
+    # Origin: chrome-extension://<id>, which will never be in _ALLOWED_ORIGINS.
+    # It authenticates instead with a persistent per-install secret the user
+    # pairs once from Settings, scoped to only this route prefix so a leaked
+    # secret can queue downloads but can't read cookies/settings/site creds.
+    if path.startswith("/api/extension/") and path != "/api/extension/":
+        if request.method == "OPTIONS":
+            return await call_next(request)
+        secret = get_settings().get("extension_secret") or ""
+        sent = request.headers.get("x-grabbr-extension-token") or ""
+        if not secret or not secrets.compare_digest(sent, secret):
+            return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        return await call_next(request)
     # OPTIONS is CORS preflight: no body, no side effects, and it can't carry the
     # token. Let CORSMiddleware answer it (it still enforces the origin allowlist).
     if API_TOKEN and request.method != "OPTIONS" and path.startswith("/api/") and path != "/api/":
@@ -1809,8 +1826,23 @@ async def write_settings(body: SettingsIn):
     return get_settings()
 
 
-@api.post("/jobs")
-async def create_jobs(body: JobCreate):
+# Pairing for the same-machine browser extension. Deliberately not part of
+# SettingsIn/PUT /settings: the secret is server-generated, never client-set,
+# and these two routes are the only way to create, rotate, or revoke it.
+@api.post("/extension-pairing")
+def enable_extension():
+    secret = secrets.token_hex(24)
+    db_run("UPDATE settings SET extension_secret=? WHERE id='singleton'", (secret,))
+    return {"extension_secret": secret}
+
+
+@api.delete("/extension-pairing")
+def disable_extension():
+    db_run("UPDATE settings SET extension_secret='' WHERE id='singleton'")
+    return {"extension_secret": ""}
+
+
+async def _create_jobs(body: JobCreate) -> dict:
     urls = [u.strip() for u in body.urls if u and u.strip()]
     if not urls:
         raise HTTPException(400, "No URLs provided")
@@ -1828,6 +1860,26 @@ async def create_jobs(body: JobCreate):
         await ws_manager.broadcast({"type": "job.update", "job": row})
         await manager.enqueue(job_id)
     return {"created": created}
+
+
+@api.post("/jobs")
+async def create_jobs(body: JobCreate):
+    return await _create_jobs(body)
+
+
+# Same-machine browser extension: authenticated by the extension-secret branch
+# in _local_guard rather than the normal GRABBR_TOKEN, so this is the only
+# job-creation entry point it can reach.
+@api.post("/extension/jobs")
+async def create_jobs_from_extension(body: JobCreate):
+    return await _create_jobs(body)
+
+
+# Lets the extension's options page confirm a pasted code actually works
+# before it's saved, without needing to queue anything.
+@api.get("/extension/ping")
+def extension_ping():
+    return {"ok": True, "app": "grabbr", "version": APP_VERSION}
 
 
 @api.get("/jobs")

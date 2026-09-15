@@ -56,6 +56,11 @@ export const toolsApi = {
   install: (name) => api.post(`/tools/${name}/install`).then(r => r.data),
 };
 
+export const extensionApi = {
+  enable:  () => api.post('/extension-pairing').then(r => r.data),
+  disable: () => api.delete('/extension-pairing').then(r => r.data),
+};
+
 export const sitesApi = {
   list:   ()             => api.get('/sites').then(r => r.data),
   get:    (site)         => api.get(`/sites/${site}`).then(r => r.data),
