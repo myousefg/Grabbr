@@ -17,11 +17,13 @@ never leaves localhost.
 
 ## Use
 
-- Click the toolbar icon to send the current tab.
-- Right-click a link (or the page) → **Send to Grabbr**.
-- A green check flashes on success; a red `!` means Grabbr isn't running;
-  an amber `?` means the pairing code was revoked or rotated - reconnect
-  from the options page.
+- Click the toolbar icon to open a small popup with the current tab's URL and
+  a **Send to Grabbr** button. On a YouTube page it also shows the quality
+  and format picker, same as the Dashboard's.
+- Right-click a link (or the page) → **Send to Grabbr** sends it immediately,
+  no popup - a green check flashes on success; a red `!` means Grabbr isn't
+  running; an amber `?` means the pairing code was revoked or rotated -
+  reconnect from the options page.
 
 ## Security notes
 

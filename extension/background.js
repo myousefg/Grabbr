@@ -14,7 +14,7 @@ async function getSecret() {
   return secret || '';
 }
 
-async function sendUrls(urls) {
+async function sendUrls(urls, options) {
   const secret = await getSecret();
   if (!secret) {
     chrome.runtime.openOptionsPage();
@@ -27,7 +27,7 @@ async function sendUrls(urls) {
         'Content-Type': 'application/json',
         'X-Grabbr-Extension-Token': secret,
       },
-      body: JSON.stringify({ urls }),
+      body: JSON.stringify(options ? { urls, options } : { urls }),
     });
     if (res.status === 401) return { ok: false, reason: 'unauthorized' };
     if (!res.ok) return { ok: false, reason: 'error' };
@@ -37,6 +37,16 @@ async function sendUrls(urls) {
     return { ok: false, reason: 'offline' };
   }
 }
+
+// The popup runs in its own context (MV3 has no shared module scope between
+// it and this service worker), so it reaches sendUrls through a message
+// instead of a direct call - this also keeps the pairing secret out of the
+// popup's own code entirely.
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type !== 'send') return false;
+  sendUrls(msg.urls, msg.options).then(sendResponse);
+  return true; // keep the message channel open for the async sendResponse
+});
 
 const BADGE = {
   ok: { text: '✓', color: '#10b981' },
@@ -53,11 +63,10 @@ async function flashBadge(result) {
   setTimeout(() => chrome.action.setBadgeText({ text: '' }), 2000);
 }
 
-chrome.action.onClicked.addListener(async (tab) => {
-  if (!tab?.url) return;
-  await flashBadge(await sendUrls([tab.url]));
-});
-
+// The toolbar button opens popup.html instead of firing this (a
+// default_popup in the manifest means Chrome never dispatches onClicked at
+// all); only the two context-menu entries below still go straight through
+// with a badge flash, since they're already a single deliberate target.
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: 'grabbr-send-link',
