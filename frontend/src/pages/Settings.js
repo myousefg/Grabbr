@@ -215,32 +215,6 @@ export default function Settings() {
         </AnimatePresence>
       </Section>
 
-      <Section label={t('settings.appearance')}>
-        <Row title={t('settings.theme')}>
-          <Select value={theme} onValueChange={v => { setTheme(v); update({ theme: v }); }}>
-            <SelectTrigger className="w-36" data-testid="theme-select"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="light">{t('settings.light')}</SelectItem>
-              <SelectItem value="dark">{t('settings.dark')}</SelectItem>
-              <SelectItem value="system">{t('settings.system')}</SelectItem>
-            </SelectContent>
-          </Select>
-        </Row>
-        <Row title={t('settings.language')}>
-          <LanguageCombobox value={lang} onValueChange={v => { setLang(v); update({ language: v }); }} t={t} />
-        </Row>
-        <Row title={t('settings.startWithWindows')} desc={t('settings.startWithWindowsDesc')}>
-          <Switch checked={!!s.autostart} onCheckedChange={setAutostart} disabled={!isElectron} />
-        </Row>
-        {!isElectron && <p className="px-4 pb-3 -mt-2 text-[11px] text-muted-foreground">{t('settings.autoStartElectronOnly')}</p>}
-        <Row title={t('settings.notifications')} desc={t('settings.notificationsDesc')}>
-          <Switch
-            checked={s.notifications_enabled ?? true}
-            onCheckedChange={v => update({ notifications_enabled: v })}
-          />
-        </Row>
-      </Section>
-
       {env && (
         <Section label={t('settings.files')}>
           <Row title={t('settings.dataFolder')} desc={t('settings.dataFolderDesc')}>
@@ -344,6 +318,32 @@ export default function Settings() {
           </div>
         </Section>
       )}
+
+      <Section label={t('settings.appearance')}>
+        <Row title={t('settings.theme')}>
+          <Select value={theme} onValueChange={v => { setTheme(v); update({ theme: v }); }}>
+            <SelectTrigger className="w-36" data-testid="theme-select"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="light">{t('settings.light')}</SelectItem>
+              <SelectItem value="dark">{t('settings.dark')}</SelectItem>
+              <SelectItem value="system">{t('settings.system')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row title={t('settings.language')}>
+          <LanguageCombobox value={lang} onValueChange={v => { setLang(v); update({ language: v }); }} t={t} />
+        </Row>
+        <Row title={t('settings.startWithWindows')} desc={t('settings.startWithWindowsDesc')}>
+          <Switch checked={!!s.autostart} onCheckedChange={setAutostart} disabled={!isElectron} />
+        </Row>
+        {!isElectron && <p className="px-4 pb-3 -mt-2 text-[11px] text-muted-foreground">{t('settings.autoStartElectronOnly')}</p>}
+        <Row title={t('settings.notifications')} desc={t('settings.notificationsDesc')}>
+          <Switch
+            checked={s.notifications_enabled ?? true}
+            onCheckedChange={v => update({ notifications_enabled: v })}
+          />
+        </Row>
+      </Section>
 
       <Section
         label={t('settings.extension')}
