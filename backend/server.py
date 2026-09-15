@@ -407,6 +407,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
             ("settings", "notifications_enabled", "INTEGER DEFAULT 1"),
             ("settings", "extension_secret", "TEXT DEFAULT ''"),
             ("settings", "gdl_overrides", "TEXT DEFAULT '{}'"),
+            ("settings", "presets", "TEXT DEFAULT '[]'"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
             ("jobs", "files_json", "TEXT DEFAULT '[]'"),
         ]:
@@ -551,6 +552,44 @@ def write_gdl_config():
         log.error("could not write gallery-dl config: %s", e)
 
 
+# ── Presets ──────────────────────────────────────────────────────────────────
+# Named, per-job option bundles (e.g. "Twitter - images only") - opt-in on the
+# Dashboard, unlike gdl_overrides above which is one always-on global layer.
+# Same deep-merge machinery, just applied on top only for the one job that
+# asked for it, via a per-job config file instead of the shared CONFIG_PATH.
+def get_presets() -> list:
+    try:
+        raw = get_settings().get("presets") or "[]"
+        parsed = json.loads(raw)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+def get_preset(preset_id: str) -> Optional[dict]:
+    for p in get_presets():
+        if p.get("id") == preset_id:
+            return p
+    return None
+
+
+def save_presets(presets: list):
+    db_run("UPDATE settings SET presets=? WHERE id='singleton'", (json.dumps(presets),))
+
+
+def write_job_config(job_id: str, preset_overrides: dict) -> Path:
+    """A one-off config file for a single job: the same base config +
+    global overrides every job gets, plus this job's chosen preset layered
+    on top. Left on disk alongside the job's log; cleaned up wherever the
+    log is."""
+    cfg = build_gdl_config(get_settings(), get_sites())
+    cfg = _deep_merge(cfg, get_gdl_overrides())
+    cfg = _deep_merge(cfg, preset_overrides)
+    path = JOB_LOG_DIR / f"{job_id}.gdl_config.json"
+    path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+    return path
+
+
 # ── argv + parsing ───────────────────────────────────────────────────────────
 def _norm_range(v: str) -> str:
     """A bare number N means 'the latest N' → '1-N'. Anything else passes through."""
@@ -559,9 +598,9 @@ def _norm_range(v: str) -> str:
 
 
 def build_argv(url: str, settings: dict, options: Optional[dict] = None,
-               simulate: bool = False) -> List[str]:
+               simulate: bool = False, config_path: Optional[Path] = None) -> List[str]:
     options = options or {}
-    argv = [gdl_bin(), "--config", str(CONFIG_PATH), "--config-ignore", "--no-colors"]
+    argv = [gdl_bin(), "--config", str(config_path or CONFIG_PATH), "--config-ignore", "--no-colors"]
     if settings.get("rate_limit"):
         argv += ["-r", str(settings["rate_limit"])]
     if options.get("range"):
@@ -908,7 +947,14 @@ class JobManager:
             return await self._run_ytdlp(job_id, job_opts, dest, log_path)
 
         write_gdl_config()
-        argv = build_argv(url, settings, job_opts)
+        job_config_path = None
+        preset = get_preset(job_opts.get("preset_id")) if job_opts.get("preset_id") else None
+        if preset:
+            try:
+                job_config_path = write_job_config(job_id, json.loads(preset.get("overrides") or "{}"))
+            except Exception as e:
+                log.error("could not write per-job config for preset %s: %s", preset.get("id"), e)
+        argv = build_argv(url, settings, job_opts, config_path=job_config_path)
 
         db_run(
             "UPDATE jobs SET status='running', started_at=?, dest_dir=?, command=?, log_path=?, hint='' WHERE id=?",
@@ -1659,6 +1705,16 @@ class ConfigOverridesIn(BaseModel):
     overrides: str  # raw JSON text, validated on write
 
 
+class PresetIn(BaseModel):
+    name: str
+    overrides: str  # raw JSON text, same convention as ConfigOverridesIn
+
+
+class PresetPatch(BaseModel):
+    name: Optional[str] = None
+    overrides: Optional[str] = None
+
+
 class CookieImportIn(BaseModel):
     path: Optional[str] = None   # a local cookies.txt to copy in
     text: Optional[str] = None   # or raw Netscape text
@@ -1937,6 +1993,62 @@ def write_config_overrides(body: ConfigOverridesIn):
     db_run("UPDATE settings SET gdl_overrides=? WHERE id='singleton'", (json.dumps(parsed),))
     write_gdl_config()
     return read_config()
+
+
+def _validate_preset_overrides(raw: str) -> str:
+    raw = (raw or "").strip() or "{}"
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise HTTPException(400, f"Invalid JSON: {e.msg} (line {e.lineno}, column {e.colno})")
+    if not isinstance(parsed, dict):
+        raise HTTPException(400, "Must be a JSON object, e.g. {\"extractor\": {...}}")
+    return json.dumps(parsed)
+
+
+@api.get("/presets")
+def list_presets():
+    return {"presets": get_presets()}
+
+
+@api.post("/presets")
+def create_preset(body: PresetIn):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Name is required")
+    overrides = _validate_preset_overrides(body.overrides)
+    presets = get_presets()
+    preset = {"id": uuid.uuid4().hex, "name": name, "overrides": overrides}
+    presets.append(preset)
+    save_presets(presets)
+    return preset
+
+
+@api.put("/presets/{preset_id}")
+def update_preset(preset_id: str, body: PresetPatch):
+    presets = get_presets()
+    for p in presets:
+        if p.get("id") == preset_id:
+            if body.name is not None:
+                name = body.name.strip()
+                if not name:
+                    raise HTTPException(400, "Name is required")
+                p["name"] = name
+            if body.overrides is not None:
+                p["overrides"] = _validate_preset_overrides(body.overrides)
+            save_presets(presets)
+            return p
+    raise HTTPException(404, "Preset not found")
+
+
+@api.delete("/presets/{preset_id}")
+def delete_preset(preset_id: str):
+    presets = get_presets()
+    remaining = [p for p in presets if p.get("id") != preset_id]
+    if len(remaining) == len(presets):
+        raise HTTPException(404, "Preset not found")
+    save_presets(remaining)
+    return {"ok": True}
 
 
 @api.post("/cache/clear")
@@ -2285,6 +2397,17 @@ async def retry_job(job_id: str):
     return {"ok": True}
 
 
+def _cleanup_job_artifacts(job_id: str, log_path: str = ""):
+    try:
+        Path(log_path or "").unlink(missing_ok=True)
+    except Exception:
+        pass
+    try:
+        (JOB_LOG_DIR / f"{job_id}.gdl_config.json").unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 @api.delete("/jobs/{job_id}")
 async def delete_job(job_id: str):
     row = _job_row(job_id)
@@ -2293,10 +2416,7 @@ async def delete_job(job_id: str):
     if row["status"] == "running":
         await manager.cancel(job_id)
     db_run("DELETE FROM jobs WHERE id=?", (job_id,))
-    try:
-        Path(row.get("log_path") or "").unlink(missing_ok=True)
-    except Exception:
-        pass
+    _cleanup_job_artifacts(job_id, row.get("log_path"))
     return {"ok": True}
 
 
@@ -2340,22 +2460,16 @@ async def delete_job_files(job_id: str):
         shutil.rmtree(base, ignore_errors=True)
 
     db_run("DELETE FROM jobs WHERE id=?", (job_id,))
-    try:
-        Path(row.get("log_path") or "").unlink(missing_ok=True)
-    except Exception:
-        pass
+    _cleanup_job_artifacts(job_id, row.get("log_path"))
     return {"ok": True, "removed": removed, "dir": raw}
 
 
 @api.delete("/jobs")
 def clear_finished():
-    rows = db_all("SELECT log_path FROM jobs WHERE status IN ('done','error','canceled')")
+    rows = db_all("SELECT id, log_path FROM jobs WHERE status IN ('done','error','canceled')")
     db_run("DELETE FROM jobs WHERE status IN ('done','error','canceled')")
     for r in rows:
-        try:
-            Path(r.get("log_path") or "").unlink(missing_ok=True)
-        except Exception:
-            pass
+        _cleanup_job_artifacts(r.get("id"), r.get("log_path"))
     return {"ok": True}
 
 

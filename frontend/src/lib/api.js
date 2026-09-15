@@ -57,6 +57,13 @@ export const configOverridesApi = {
   update: (overrides)  => api.put('/config/overrides', { overrides }).then(r => r.data),
 };
 
+export const presetsApi = {
+  list:   ()                    => api.get('/presets').then(r => r.data.presets),
+  create: (name, overrides)     => api.post('/presets', { name, overrides }).then(r => r.data),
+  update: (id, patch)           => api.put(`/presets/${id}`, patch).then(r => r.data),
+  remove: (id)                  => api.delete(`/presets/${id}`).then(r => r.data),
+};
+
 export const toolsApi = {
   list:    ()     => api.get('/tools').then(r => r.data),
   install: (name) => api.post(`/tools/${name}/install`).then(r => r.data),

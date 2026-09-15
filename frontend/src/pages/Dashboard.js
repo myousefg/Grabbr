@@ -14,6 +14,7 @@ import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
 import { isElectron } from '@/lib/electron';
+import { presetsApi } from '@/lib/api';
 import { snappy, listItem } from '@/lib/motion';
 
 const MODES = ['auto', 'page', 'scan'];
@@ -66,7 +67,11 @@ export default function Dashboard() {
   const [preview, setPreview] = useState(null); // { url, options }
   const [quality, setQuality] = useState('best'); // YouTube only
   const [format, setFormat] = useState('mp4');  // YouTube only: mp4 | mp3
+  const [presets, setPresets] = useState([]);
+  const [preset, setPreset] = useState('none');
   const urlInputId = useId();
+
+  useEffect(() => { presetsApi.list().then(setPresets).catch(() => {}); }, []);
 
   const urls = useMemo(() => splitUrls(text), [text]);
   const modeMismatch = mode !== 'auto' && urls.some(hasDedicatedExtractor);
@@ -79,6 +84,7 @@ export default function Dashboard() {
       if (quality !== 'best') o.quality = quality;
       if (format && format !== 'mp4') o.format = format;
     }
+    if (preset !== 'none') o.preset_id = preset;
     return Object.keys(o).length ? o : undefined;
   };
 
@@ -208,8 +214,17 @@ export default function Dashboard() {
               </Select>
             </>
           )}
+          {presets.length > 0 && (
+            <Select value={preset} onValueChange={setPreset}>
+              <SelectTrigger className="w-40 ms-auto" data-testid="preset-select"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t('dashboard.noPreset')}</SelectItem>
+                {presets.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={mode} onValueChange={setMode}>
-            <SelectTrigger className="w-[190px] ms-auto" data-testid="mode-select"><SelectValue /></SelectTrigger>
+            <SelectTrigger className={`w-[190px] ${presets.length > 0 ? '' : 'ms-auto'}`} data-testid="mode-select"><SelectValue /></SelectTrigger>
             <SelectContent>
               {MODES.map(m => <SelectItem key={m} value={m}>{t(`dashboard.mode.${m}`)}</SelectItem>)}
             </SelectContent>

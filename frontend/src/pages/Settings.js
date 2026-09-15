@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check, RefreshCw, Trash2, ChevronDown,
-  Puzzle, Copy, ShieldOff,
+  Puzzle, Copy, ShieldOff, Plus,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,7 +24,7 @@ import { useI18n } from '@/context/I18nProvider';
 import { useTheme } from '@/context/ThemeProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
-import { toolsApi, envApi, extensionApi, configOverridesApi } from '@/lib/api';
+import { toolsApi, envApi, extensionApi, configOverridesApi, presetsApi } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
 import { snappy } from '@/lib/motion';
 
@@ -319,6 +319,8 @@ export default function Settings() {
         </Section>
       )}
 
+      <PresetsSection />
+
       <Section label={t('settings.appearance')}>
         <Row title={t('settings.theme')}>
           <Select value={theme} onValueChange={v => { setTheme(v); update({ theme: v }); }}>
@@ -581,5 +583,170 @@ function ToolRow({ name, tool, live, onInstall, t, desc }) {
         )}
       </div>
     </div>
+  );
+}
+
+// Named, per-job option bundles picked from the Dashboard - a saved JSON
+// override (same shape/validation as the "Edit custom config" block above)
+// applied only to the download that asks for it, instead of the global one
+// that always applies. Same load/edit/save/error state machine as that
+// block, just per-row and with a name.
+function PresetsSection() {
+  const { t } = useI18n();
+  const [presets, setPresets] = useState(null); // null = loading
+  const [openId, setOpenId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [draftName, setDraftName] = useState('');
+  const [draftOverrides, setDraftOverrides] = useState('{}');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = () => presetsApi.list().then(setPresets).catch(() => setPresets([]));
+  useEffect(() => { load(); }, []);
+
+  const closeAll = () => { setOpenId(null); setAdding(false); setError(''); };
+
+  const openPreset = (p) => {
+    if (openId === p.id) { closeAll(); return; }
+    setAdding(false);
+    setOpenId(p.id);
+    setDraftName(p.name);
+    let pretty = p.overrides;
+    try { pretty = JSON.stringify(JSON.parse(p.overrides), null, 2); } catch { /* show raw as-is */ }
+    setDraftOverrides(pretty);
+    setError('');
+  };
+
+  const startAdd = () => {
+    if (adding) { closeAll(); return; }
+    setOpenId(null);
+    setAdding(true);
+    setDraftName('');
+    setDraftOverrides('{\n  \n}');
+    setError('');
+  };
+
+  const saveEdit = async (id) => {
+    setSaving(true);
+    setError('');
+    try {
+      await presetsApi.update(id, { name: draftName, overrides: draftOverrides });
+      closeAll();
+      load();
+    } catch (e) {
+      setError(e?.response?.data?.detail || t('settings.presetInvalid'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveNew = async () => {
+    if (!draftName.trim()) { setError(t('settings.presetNameRequired')); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await presetsApi.create(draftName, draftOverrides);
+      closeAll();
+      load();
+    } catch (e) {
+      setError(e?.response?.data?.detail || t('settings.presetInvalid'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removePreset = async (id) => {
+    try {
+      await presetsApi.remove(id);
+      if (openId === id) closeAll();
+      load();
+    } catch {
+      toast.error(t('settings.saveFailed'));
+    }
+  };
+
+  if (presets === null) return null;
+
+  const editorFields = (
+    <div className="px-4 pb-4 space-y-2">
+      <Input
+        value={draftName} onChange={e => setDraftName(e.target.value)}
+        placeholder={t('settings.presetNamePlaceholder')} aria-label={t('settings.presetName')}
+        className="max-w-xs"
+      />
+      <textarea
+        value={draftOverrides}
+        onChange={e => { setDraftOverrides(e.target.value); setError(''); }}
+        spellCheck={false}
+        aria-label={t('settings.presetOverrides')}
+        className="w-full h-32 rounded border border-border bg-muted/30 p-2 text-[11px] font-mono leading-relaxed resize-y focus:outline-none focus:ring-1 focus:ring-ring"
+      />
+      {error && <p className="text-xs text-destructive font-mono whitespace-pre-wrap">{error}</p>}
+    </div>
+  );
+
+  return (
+    <Section
+      label={t('settings.presets')}
+      aside={
+        <Button size="sm" variant="outline" onClick={startAdd}>
+          <Plus className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.presetAdd')}
+        </Button>
+      }
+    >
+      {presets.length === 0 && !adding && (
+        <p className="p-4 text-xs text-muted-foreground leading-relaxed max-w-lg">{t('settings.presetsEmpty')}</p>
+      )}
+      {presets.map(p => (
+        <div key={p.id}>
+          <button
+            type="button" onClick={() => openPreset(p)}
+            aria-expanded={openId === p.id}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-accent/50 transition-colors"
+          >
+            <span className="text-sm font-medium truncate">{p.name}</span>
+            <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${openId === p.id ? 'rotate-180' : ''}`} aria-hidden="true" />
+          </button>
+          <AnimatePresence initial={false}>
+            {openId === p.id && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }} transition={snappy} style={{ overflow: 'hidden' }}
+              >
+                {editorFields}
+                <div className="px-4 pb-4 flex items-center gap-2">
+                  <Button size="sm" onClick={() => saveEdit(p.id)} disabled={saving}>
+                    {saving && <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" aria-hidden="true" />}
+                    {t('settings.presetSave')}
+                  </Button>
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => removePreset(p.id)}>
+                    <Trash2 className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.presetDelete')}
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ))}
+      <AnimatePresence initial={false}>
+        {adding && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} transition={snappy} style={{ overflow: 'hidden' }}
+          >
+            <div className="border-t border-border pt-1">
+              {editorFields}
+              <div className="px-4 pb-4 flex items-center gap-2">
+                <Button size="sm" onClick={saveNew} disabled={saving}>
+                  {saving && <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" aria-hidden="true" />}
+                  {t('settings.presetAdd')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={closeAll}>{t('common.cancel')}</Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </Section>
   );
 }
