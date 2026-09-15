@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { AnimatePresence, motion } from 'motion/react';
 import { Loader2, FolderOpen, CheckCircle2, XCircle, Download, Check, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,7 @@ import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
 import { toolsApi, envApi } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
+import { snappy } from '@/lib/motion';
 
 export default function Settings() {
   const { t, lang, setLang } = useI18n();
@@ -75,7 +77,7 @@ export default function Settings() {
   }[saveState];
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
+    <div className="space-y-8 pb-12">
       <header className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('settings.title')}</h1>
@@ -110,26 +112,34 @@ export default function Settings() {
           <span className="text-sm font-medium">{t('settings.advanced')}</span>
           <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
         </button>
-        {showAdvanced && (
-          <>
-            <Row title={t('settings.rateLimit')} desc={t('settings.rateLimitDesc')}>
-              <Input value={s.rate_limit || ''} onChange={e => update({ rate_limit: e.target.value })}
-                placeholder="1M" className="w-24 font-mono text-xs" />
-            </Row>
-            <Row title={t('settings.proxy')} desc={t('settings.proxyDesc')}>
-              <Input value={s.proxy || ''} onChange={e => update({ proxy: e.target.value })}
-                placeholder="socks5://127.0.0.1:1080" className="w-64 font-mono text-xs" data-testid="proxy" />
-            </Row>
-            <Row title={t('settings.sleepRequest')} desc={t('settings.sleepRequestDesc')}>
-              <Input type="number" min={0} step={0.5} value={s.sleep_request ?? 0}
-                onChange={e => num('sleep_request', e.target.value, 0)} className="w-20" />
-            </Row>
-            <Row title={t('settings.retries')} desc={t('settings.retriesDesc')}>
-              <Input type="number" min={0} max={99} value={s.retries ?? 4}
-                onChange={e => num('retries', e.target.value, 0)} className="w-20" />
-            </Row>
-          </>
-        )}
+        <AnimatePresence initial={false}>
+          {showAdvanced && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={snappy}
+              style={{ overflow: 'hidden' }}
+            >
+              <Row title={t('settings.rateLimit')} desc={t('settings.rateLimitDesc')}>
+                <Input value={s.rate_limit || ''} onChange={e => update({ rate_limit: e.target.value })}
+                  placeholder="1M" className="w-24 font-mono text-xs" />
+              </Row>
+              <Row title={t('settings.proxy')} desc={t('settings.proxyDesc')}>
+                <Input value={s.proxy || ''} onChange={e => update({ proxy: e.target.value })}
+                  placeholder="socks5://127.0.0.1:1080" className="w-64 font-mono text-xs" data-testid="proxy" />
+              </Row>
+              <Row title={t('settings.sleepRequest')} desc={t('settings.sleepRequestDesc')}>
+                <Input type="number" min={0} step={0.5} value={s.sleep_request ?? 0}
+                  onChange={e => num('sleep_request', e.target.value, 0)} className="w-20" />
+              </Row>
+              <Row title={t('settings.retries')} desc={t('settings.retriesDesc')}>
+                <Input type="number" min={0} max={99} value={s.retries ?? 4}
+                  onChange={e => num('retries', e.target.value, 0)} className="w-20" />
+              </Row>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Section>
 
       <Section label={t('settings.appearance')}>
@@ -197,11 +207,21 @@ export default function Settings() {
               className="text-xs underline text-muted-foreground hover:text-foreground">
               {showCfg ? t('settings.hideConfig') : t('settings.viewConfig')}
             </button>
-            {showCfg && (
-              <pre className="mt-2 max-h-64 overflow-auto rounded border border-border bg-muted/30 p-2 text-[11px] font-mono">
-                {cfg ? JSON.stringify(cfg, null, 2) : '…'}
-              </pre>
-            )}
+            <AnimatePresence initial={false}>
+              {showCfg && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={snappy}
+                  style={{ overflow: 'hidden' }}
+                >
+                  <pre className="mt-2 max-h-64 overflow-auto rounded border border-border bg-muted/30 p-2 text-[11px] font-mono">
+                    {cfg ? JSON.stringify(cfg, null, 2) : '…'}
+                  </pre>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </Section>
       )}

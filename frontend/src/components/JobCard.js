@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Loader2, X, RotateCcw, Trash2, FolderOpen, Terminal, ChevronDown, KeyRound, Timer,
 } from 'lucide-react';
@@ -11,6 +12,7 @@ import { useJobs } from '@/context/JobsProvider';
 import { jobsApi } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
 import { useCooldownTick, HINT_KEY } from '@/lib/jobHints';
+import { snappy } from '@/lib/motion';
 
 const STATUS_STYLE = {
   queued:   'bg-muted text-muted-foreground',
@@ -55,11 +57,20 @@ export default function JobCard({ job }) {
   const openFolder = () => { if (isElectron && job.dest_dir) window.electronAPI.openPath(job.dest_dir); };
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-3" data-testid={`job-${job.id}`}>
+    <div className="border border-border rounded-lg p-4 space-y-3 surface-elevated" data-testid={`job-${job.id}`}>
       <div className="flex items-start gap-3">
-        <span className={`text-[10px] font-medium tracking-[0.15em] px-2 py-1 rounded ${STATUS_STYLE[job.status] || ''}`}>
-          {t(`dashboard.status.${job.status}`)}
-        </span>
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={job.status}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={snappy}
+            className={`text-[10px] font-medium tracking-[0.15em] px-2 py-1 rounded ${STATUS_STYLE[job.status] || ''}`}
+          >
+            {t(`dashboard.status.${job.status}`)}
+          </motion.span>
+        </AnimatePresence>
         <div className="min-w-0 flex-1">
           <p className="font-mono text-xs break-all leading-relaxed">{job.url}</p>
         </div>
@@ -74,8 +85,10 @@ export default function JobCard({ job }) {
         {job.files_error > 0 && <span className="text-destructive">{job.files_error} {t('dashboard.errors')}</span>}
       </div>
 
-      {job.total > 0 && (job.status === 'running' || job.status === 'queued') && (
-        <Progress value={Math.min(100, ((job.files_ok || 0) / job.total) * 100)} className="h-1" />
+      {active && (
+        job.total > 0
+          ? <Progress value={Math.min(100, ((job.files_ok || 0) / job.total) * 100)} className="h-1" />
+          : <Progress indeterminate className="h-1" />
       )}
 
       {job.status === 'running' && job.current_file && (
@@ -130,17 +143,27 @@ export default function JobCard({ job }) {
         </Button>
       </div>
 
-      {open && (
-        <ScrollArea className="h-48 rounded-md border border-border bg-muted/30">
-          <pre className="p-3 text-[11px] font-mono leading-relaxed">
-            {active
-              ? (live.length
-                  ? live.map((l, i) => <div key={i} className={LINE_COLOR[l.kind] || ''}>{l.text}</div>)
-                  : <span className="text-muted-foreground">…</span>)
-              : (fullLog ?? '…')}
-          </pre>
-        </ScrollArea>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={snappy}
+            style={{ overflow: 'hidden' }}
+          >
+            <ScrollArea className="h-48 rounded-md border border-border bg-muted/30">
+              <pre className="p-3 text-[11px] font-mono leading-relaxed">
+                {active
+                  ? (live.length
+                      ? live.map((l, i) => <div key={i} className={LINE_COLOR[l.kind] || ''}>{l.text}</div>)
+                      : <span className="text-muted-foreground">…</span>)
+                  : (fullLog ?? '…')}
+              </pre>
+            </ScrollArea>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

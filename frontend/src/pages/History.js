@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   Search, Trash2, ChevronDown, RotateCcw, FolderOpen, KeyRound, Film, FolderX, ImageOff,
 } from 'lucide-react';
@@ -22,6 +23,7 @@ import { useSettings } from '@/context/SettingsProvider';
 import { jobsApi, thumbUrl } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
 import { useCooldownTick, HINT_KEY } from '@/lib/jobHints';
+import { snappy, listItem } from '@/lib/motion';
 
 const DOT = {
   done: 'bg-emerald-500', error: 'bg-destructive', canceled: 'bg-muted-foreground/40',
@@ -102,7 +104,7 @@ function HistoryRow({ job }) {
     : <span>{job.files_ok || 0}{job.total > 0 ? `/${job.total}` : ''} {t('dashboard.files')}{job.files_skipped ? ` · ${job.files_skipped} ${t('dashboard.skipped')}` : ''}</span>;
 
   return (
-    <div className="border border-border rounded-md overflow-hidden" data-testid={`hist-${job.id}`}>
+    <div className="border border-border rounded-md overflow-hidden surface-elevated" data-testid={`hist-${job.id}`}>
       <button onClick={toggle} className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent/50 transition-colors">
         <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOT[job.status] || 'bg-muted-foreground/40'}`} />
         <span className="font-mono text-xs truncate flex-1 min-w-0">{job.url}</span>
@@ -112,7 +114,15 @@ function HistoryRow({ job }) {
         <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={snappy}
+            style={{ overflow: 'hidden' }}
+          >
         <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border bg-muted/20">
           <div className="text-[11px] font-mono text-muted-foreground break-all">{job.dest_dir}</div>
 
@@ -221,7 +231,9 @@ function HistoryRow({ job }) {
             </ScrollArea>
           )}
         </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -241,7 +253,7 @@ export default function History() {
   const doClear = async () => { await clearFinished(); toast.success(t('history.clear')); };
 
   return (
-    <div className="space-y-5 animate-fade-in pb-12">
+    <div className="space-y-5 pb-12">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('history.title')}</h1>
         <p className="text-sm text-muted-foreground mt-2">{t('history.subtitle')}</p>
@@ -288,7 +300,20 @@ export default function History() {
         </div>
       ) : (
         <div className="space-y-1.5">
-          {rows.map(job => <HistoryRow key={job.id} job={job} />)}
+          <AnimatePresence initial={false}>
+            {rows.map(job => (
+              <motion.div
+                key={job.id}
+                layout
+                initial={listItem.initial}
+                animate={listItem.animate}
+                exit={listItem.exit}
+                transition={snappy}
+              >
+                <HistoryRow job={job} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </div>

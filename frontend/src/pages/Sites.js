@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ChevronDown, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Upload, Trash2, X,
 } from 'lucide-react';
@@ -11,6 +12,7 @@ import { useJobs } from '@/context/JobsProvider';
 import { sitesApi, envApi } from '@/lib/api';
 import { isElectron, openExternal } from '@/lib/electron';
 import { SITE_GROUPS } from '@/lib/sites';
+import { snappy } from '@/lib/motion';
 
 function TierBadge({ auth, required }) {
   const label = {
@@ -164,8 +166,16 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
         </div>
       </button>
 
-      {open && (
-        <div className="px-3.5 pb-4 pt-1 space-y-3 border-t border-border">
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={snappy}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="px-3.5 pb-4 pt-1 space-y-3 border-t border-border">
           {site.note && <p className="text-xs text-muted-foreground leading-relaxed pt-2">{site.note}</p>}
 
           {/* Cookie sites */}
@@ -289,8 +299,10 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
               </div>
             </div>
           )}
-        </div>
-      )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -339,7 +351,7 @@ export default function Sites() {
   }, [load, loadCookies]);
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
+    <div className="space-y-8 pb-12">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('sites.title')}</h1>
         <p className="text-xs text-muted-foreground mt-2">

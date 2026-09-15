@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { AnimatePresence, motion } from 'motion/react';
 import { Download, Eye, Loader2, AlertTriangle, ClipboardPaste } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,6 +14,7 @@ import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
 import { isElectron } from '@/lib/electron';
+import { snappy, listItem } from '@/lib/motion';
 
 const MODES = ['auto', 'page', 'scan'];
 // Grabbr passes URLs straight to gallery-dl, so a mode is just a prefix.
@@ -134,7 +136,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in pb-12">
+    <div className="space-y-8 pb-12">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('dashboard.title')}</h1>
         <p className="text-sm text-muted-foreground mt-2">{t('dashboard.subtitle')}</p>
@@ -238,7 +240,20 @@ export default function Dashboard() {
           </p>
         ) : (
           <div className="space-y-3">
-            {queueView.map(job => <JobCard key={job.id} job={job} />)}
+            <AnimatePresence initial={false}>
+              {queueView.map(job => (
+                <motion.div
+                  key={job.id}
+                  layout
+                  initial={listItem.initial}
+                  animate={listItem.animate}
+                  exit={listItem.exit}
+                  transition={snappy}
+                >
+                  <JobCard job={job} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </section>
