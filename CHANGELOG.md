@@ -14,7 +14,7 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 - One-click import of Twitter/X bookmarks
 - Browser extension: the toolbar button now opens a small popup showing the link before it
   sends, with the same quality/format picker as the Dashboard for YouTube links
-- macOS and Linux builds, in addition to Windows
+- The first steps toward macOS and Linux support (not yet available as a download)
 
 ### Changed
 - Settings > Tools now links each tool (gallery-dl, yt-dlp, FFmpeg, aria2c) to its GitHub project
