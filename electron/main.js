@@ -178,13 +178,18 @@ function killStaleBackend() {
       // lsof ships with macOS and most Linux desktops; if it's missing this
       // is just a no-op like the Windows branch's own catch-all - startBackend's
       // own timeout still catches a genuinely stuck bind either way.
+      //
+      // Kills just this PID, not its process group: unlike stopBackend()
+      // below, this PID isn't known to be something Grabbr itself spawned
+      // (this runs before that association can even exist) - whatever else
+      // is bound to the port could be a shell job leader or anything else
+      // whose group killpg would reach far past a single stale process.
       const out = spawnSync('lsof', ['-t', '-i', `:${BACKEND_PORT}`, '-sTCP:LISTEN']).stdout?.toString() || '';
       for (const line of out.split('\n')) {
         const pid = line.trim();
         if (!pid) continue;
         console.warn(`[grabbr] Clearing stale process on port ${BACKEND_PORT} (PID ${pid})`);
-        try { process.kill(-Number(pid), 'SIGKILL'); }
-        catch { try { process.kill(Number(pid), 'SIGKILL'); } catch { /* already gone */ } }
+        try { process.kill(Number(pid), 'SIGKILL'); } catch { /* already gone */ }
       }
     }
   } catch { /* best-effort; startBackend's own timeout still catches a stuck bind */ }

@@ -545,13 +545,18 @@ def get_gdl_overrides() -> dict:
         return {}
 
 
-def write_gdl_config():
+def write_gdl_config() -> dict:
+    """Returns the config it wrote (base + global overrides), so a caller
+    that also needs to layer a preset on top (write_job_config below) isn't
+    forced to recompute the exact same thing a moment later."""
+    cfg = {}
     try:
         cfg = build_gdl_config(get_settings(), get_sites())
         cfg = _deep_merge(cfg, get_gdl_overrides())
         CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     except Exception as e:
         log.error("could not write gallery-dl config: %s", e)
+    return cfg
 
 
 # ── Presets ──────────────────────────────────────────────────────────────────
@@ -579,17 +584,37 @@ def save_presets(presets: list):
     db_run("UPDATE settings SET presets=? WHERE id='singleton'", (json.dumps(presets),))
 
 
-def write_job_config(job_id: str, preset_overrides: dict) -> Path:
+def write_job_config(job_id: str, preset_overrides: dict, base_cfg: Optional[dict] = None) -> Path:
     """A one-off config file for a single job: the same base config +
     global overrides every job gets, plus this job's chosen preset layered
-    on top. Left on disk alongside the job's log; cleaned up wherever the
-    log is."""
-    cfg = build_gdl_config(get_settings(), get_sites())
-    cfg = _deep_merge(cfg, get_gdl_overrides())
+    on top. Pass `base_cfg` when the caller already has one (e.g. from
+    write_gdl_config(), called moments earlier in the same request) to
+    avoid rebuilding it from scratch. Left on disk alongside the job's log;
+    cleaned up wherever the log is."""
+    cfg = base_cfg if base_cfg is not None else _deep_merge(
+        build_gdl_config(get_settings(), get_sites()), get_gdl_overrides())
     cfg = _deep_merge(cfg, preset_overrides)
     path = JOB_LOG_DIR / f"{job_id}.gdl_config.json"
     path.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
     return path
+
+
+def resolve_preset_config(options: dict, temp_id: str, base_cfg: Optional[dict] = None) -> Optional[Path]:
+    """Looks up options['preset_id'] and, if it names a real preset, writes
+    a one-off config file for it and returns its path - shared by real job
+    runs and Preview, so a preview and the job it's previewing agree on
+    what will actually be downloaded."""
+    preset_id = (options or {}).get("preset_id")
+    if not preset_id:
+        return None
+    preset = get_preset(preset_id)
+    if not preset:
+        return None
+    try:
+        return write_job_config(temp_id, json.loads(preset.get("overrides") or "{}"), base_cfg=base_cfg)
+    except Exception as e:
+        log.error("could not write per-job config for preset %s: %s", preset_id, e)
+        return None
 
 
 # ── argv + parsing ───────────────────────────────────────────────────────────
@@ -739,15 +764,24 @@ def build_ytdlp_argv(url: str, settings: dict, options: Optional[dict], print_to
 
     if settings.get("proxy"):
         argv += ["--proxy", str(settings["proxy"]).strip()]
-    if settings.get("rate_limit"):
-        argv += ["-r", str(settings["rate_limit"])]
+    rate_limit = str(settings.get("rate_limit") or "").strip()
+    if rate_limit:
+        argv += ["-r", rate_limit]
 
     # aria2c splits a single video into parallel connections instead of one
     # sequential HTTP stream - a real speedup on the large single files a
     # YouTube pull actually is. Same "if it's there, use it" rule as ffmpeg:
     # no separate setting, just install it from Settings > Tools.
+    #
+    # yt-dlp's own -r/--limit-rate above does nothing once a download is
+    # handed off to an external downloader - aria2c needs the equivalent
+    # told to IT instead, or a configured rate limit would silently stop
+    # applying the moment aria2c is installed.
     if aria2c_bin():
-        argv += ["--downloader", "aria2c", "--downloader-args", "aria2c:-x16 -s16 -k1M"]
+        aria2_args = "-x16 -s16 -k1M"
+        if rate_limit:
+            aria2_args += f" --max-download-limit={rate_limit}"
+        argv += ["--downloader", "aria2c", "--downloader-args", f"aria2c:{aria2_args}"]
 
     argv.append(url)
     return argv
@@ -962,14 +996,8 @@ class JobManager:
         if _is_youtube_url(url):
             return await self._run_ytdlp(job_id, job_opts, dest, log_path)
 
-        write_gdl_config()
-        job_config_path = None
-        preset = get_preset(job_opts.get("preset_id")) if job_opts.get("preset_id") else None
-        if preset:
-            try:
-                job_config_path = write_job_config(job_id, json.loads(preset.get("overrides") or "{}"))
-            except Exception as e:
-                log.error("could not write per-job config for preset %s: %s", preset.get("id"), e)
+        base_cfg = write_gdl_config()
+        job_config_path = resolve_preset_config(job_opts, job_id, base_cfg=base_cfg)
         argv = build_argv(url, settings, job_opts, config_path=job_config_path)
 
         db_run(
@@ -1052,7 +1080,12 @@ class JobManager:
         self.cancelled.discard(job_id)
         paused = job_id in self.pausing
         self.pausing.discard(job_id)
-        status = "paused" if paused else ("canceled" if cancelled else ("done" if rc == 0 else "error"))
+        # cancelled wins if both are set: Stop is still offered while a job
+        # shows as "running" (status doesn't flip to paused until the
+        # process actually exits), so Pause-then-Stop in that window adds
+        # the job to both sets before either request has, meaning a Stop
+        # the user explicitly asked for should never come back as "paused".
+        status = "canceled" if cancelled else ("paused" if paused else ("done" if rc == 0 else "error"))
 
         blob = "\n".join(errors[-40:])
         try:
@@ -1229,7 +1262,8 @@ class JobManager:
                 pass
 
         written_files = [final_path] if final_path else []
-        status = "paused" if paused else ("canceled" if cancelled else ("done" if rc == 0 and final_path else "error"))
+        # cancelled wins if both are set - see the matching comment in _run().
+        status = "canceled" if cancelled else ("paused" if paused else ("done" if rc == 0 and final_path else "error"))
         counts = {
             "files_ok": 1 if status == "done" else 0,
             "files_skipped": 0,
@@ -1257,53 +1291,66 @@ manager = JobManager()
 # ── Preview ──────────────────────────────────────────────────────────────────
 async def run_preview(url: str, options: Optional[dict] = None,
                       limit: int = 60, timeout: float = 45.0) -> dict:
-    write_gdl_config()
-    argv = build_argv(url, get_settings(), options or {}, simulate=True)
+    base_cfg = write_gdl_config()
+    # Ephemeral, not a real job id - resolve_preset_config only uses this to
+    # name the temp file, and it's removed in the `finally` below rather
+    # than left for _cleanup_job_artifacts, since there's no job row for it
+    # to be cleaned up alongside.
+    preview_id = f"preview-{uuid.uuid4().hex}"
+    preview_config_path = resolve_preset_config(options or {}, preview_id, base_cfg=base_cfg)
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            env=sub_env(), creationflags=CREATE_NO_WINDOW, cwd=str(BASE_DIR),
-        )
-    except FileNotFoundError:
-        raise HTTPException(500, f"gallery-dl binary not found at: {gdl_bin()}")
+        argv = build_argv(url, get_settings(), options or {}, simulate=True, config_path=preview_config_path)
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *argv, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                env=sub_env(), creationflags=CREATE_NO_WINDOW, cwd=str(BASE_DIR),
+            )
+        except FileNotFoundError:
+            raise HTTPException(500, f"gallery-dl binary not found at: {gdl_bin()}")
 
-    files: List[str] = []
-    errors: List[str] = []
-    count = 0
-    try:
-        async def _read():
-            nonlocal count
-            while True:
-                chunk = await proc.stdout.readline()
-                if not chunk:
-                    break
-                for piece in chunk.decode("utf-8", errors="replace").replace("\r", "\n").split("\n"):
-                    kind, text = classify_line(piece)
-                    if kind in ("file", "skip"):
-                        count += 1
-                        if len(files) < limit:
-                            files.append(text)
-                    elif kind == "error":
-                        errors.append(text)
+        files: List[str] = []
+        errors: List[str] = []
+        count = 0
+        try:
+            async def _read():
+                nonlocal count
+                while True:
+                    chunk = await proc.stdout.readline()
+                    if not chunk:
+                        break
+                    for piece in chunk.decode("utf-8", errors="replace").replace("\r", "\n").split("\n"):
+                        kind, text = classify_line(piece)
+                        if kind in ("file", "skip"):
+                            count += 1
+                            if len(files) < limit:
+                                files.append(text)
+                        elif kind == "error":
+                            errors.append(text)
 
-        await asyncio.wait_for(_read(), timeout=timeout)
-        rc = await asyncio.wait_for(proc.wait(), timeout=5)
-    except asyncio.TimeoutError:
-        proc.kill()
+            await asyncio.wait_for(_read(), timeout=timeout)
+            rc = await asyncio.wait_for(proc.wait(), timeout=5)
+        except asyncio.TimeoutError:
+            proc.kill()
+            eblob = "\n".join(errors)
+            return {"url": url, "count": count, "files": files, "truncated": True,
+                    "errors": errors, "needs_auth": bool(_AUTH_ERR.search(eblob)),
+                    "rate_limited": bool(_RATE_LIMIT.search(eblob)),
+                    "note": "Preview timed out. Partial result."}
+
         eblob = "\n".join(errors)
-        return {"url": url, "count": count, "files": files, "truncated": True,
-                "errors": errors, "needs_auth": bool(_AUTH_ERR.search(eblob)),
-                "rate_limited": bool(_RATE_LIMIT.search(eblob)),
-                "note": "Preview timed out. Partial result."}
-
-    eblob = "\n".join(errors)
-    return {
-        "url": url, "count": count, "files": files,
-        "truncated": count > len(files), "errors": errors,
-        "needs_auth": bool(_AUTH_ERR.search(eblob)),
-        "rate_limited": bool(_RATE_LIMIT.search(eblob)),
-        "return_code": rc,
-    }
+        return {
+            "url": url, "count": count, "files": files,
+            "truncated": count > len(files), "errors": errors,
+            "needs_auth": bool(_AUTH_ERR.search(eblob)),
+            "rate_limited": bool(_RATE_LIMIT.search(eblob)),
+            "return_code": rc,
+        }
+    finally:
+        if preview_config_path:
+            try:
+                preview_config_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
 
 # ── OAuth helper ─────────────────────────────────────────────────────────────
@@ -1467,7 +1514,13 @@ def _cached_fetch(key: str, fn) -> Optional[str]:
         val = fn() or None
     except Exception:
         val = None
-    _latest_cache[key] = (time.time(), val)
+    # Only a real result is worth an hour of staleness. Caching a failure
+    # (a transient network blip, GitHub rate-limiting) the same way would
+    # turn one bad request into an hour of every install/update-check
+    # attempt failing immediately with no way to force a retry short of
+    # restarting the backend.
+    if val is not None:
+        _latest_cache[key] = (time.time(), val)
     return val
 
 
@@ -1542,7 +1595,7 @@ def find_tool(name: str) -> dict:
             ver = _run_version(exe)
     latest = latest_version(name)
     if not exe:
-        avail = "install"
+        avail = "install" if CURRENT_OS in TOOL_SOURCES.get(name, {}) else "unsupported"
     elif latest is None:
         avail = "installed"            # can't compare (ffmpeg), offer reinstall only
     elif _ver_ge(ver, latest):
@@ -2088,21 +2141,9 @@ def read_config_overrides():
     return {"overrides": raw}
 
 
-@api.put("/config/overrides")
-def write_config_overrides(body: ConfigOverridesIn):
-    raw = body.overrides.strip() or "{}"
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise HTTPException(400, f"Invalid JSON: {e.msg} (line {e.lineno}, column {e.colno})")
-    if not isinstance(parsed, dict):
-        raise HTTPException(400, "Must be a JSON object, e.g. {\"extractor\": {...}}")
-    db_run("UPDATE settings SET gdl_overrides=? WHERE id='singleton'", (json.dumps(parsed),))
-    write_gdl_config()
-    return read_config()
-
-
-def _validate_preset_overrides(raw: str) -> str:
+def _validate_json_object(raw: str) -> str:
+    """Shared by the global config-overrides editor and presets: both store
+    a raw gallery-dl-config-shaped JSON object with the same validation."""
     raw = (raw or "").strip() or "{}"
     try:
         parsed = json.loads(raw)
@@ -2111,6 +2152,14 @@ def _validate_preset_overrides(raw: str) -> str:
     if not isinstance(parsed, dict):
         raise HTTPException(400, "Must be a JSON object, e.g. {\"extractor\": {...}}")
     return json.dumps(parsed)
+
+
+@api.put("/config/overrides")
+def write_config_overrides(body: ConfigOverridesIn):
+    parsed_raw = _validate_json_object(body.overrides)
+    db_run("UPDATE settings SET gdl_overrides=? WHERE id='singleton'", (parsed_raw,))
+    write_gdl_config()
+    return read_config()
 
 
 @api.get("/presets")
@@ -2123,7 +2172,7 @@ def create_preset(body: PresetIn):
     name = body.name.strip()
     if not name:
         raise HTTPException(400, "Name is required")
-    overrides = _validate_preset_overrides(body.overrides)
+    overrides = _validate_json_object(body.overrides)
     presets = get_presets()
     preset = {"id": uuid.uuid4().hex, "name": name, "overrides": overrides}
     presets.append(preset)
@@ -2142,7 +2191,7 @@ def update_preset(preset_id: str, body: PresetPatch):
                     raise HTTPException(400, "Name is required")
                 p["name"] = name
             if body.overrides is not None:
-                p["overrides"] = _validate_preset_overrides(body.overrides)
+                p["overrides"] = _validate_json_object(body.overrides)
             save_presets(presets)
             return p
     raise HTTPException(404, "Preset not found")
@@ -2491,8 +2540,15 @@ async def pause_job(job_id: str):
 
 @api.post("/jobs/{job_id}/retry")
 async def retry_job(job_id: str):
-    if not _job_row(job_id):
+    row = _job_row(job_id)
+    if not row:
         raise HTTPException(404, "Job not found")
+    # A job already running (or already back in the queue) must finish that
+    # cycle first: re-enqueueing the same id while _run()/_run_ytdlp() is
+    # still executing for it starts a second concurrent run under one id,
+    # and the two runs' completion handlers race to write the final status.
+    if row["status"] in ("running", "queued"):
+        raise HTTPException(409, "This job is already running")
     db_run(
         """UPDATE jobs SET status='queued', files_ok=0, files_skipped=0, files_error=0, files_json='[]',
                error_text='', hint='', current_file='', return_code=NULL,
@@ -2710,16 +2766,38 @@ def _watch_parent_and_exit():
     is by window ownership, not the actual process tree), so "End Task" on
     Grabbr never reaches us - we'd otherwise be orphaned, left holding the
     port with a token no later launch can ever match. Exit the instant that
-    process is gone, by any means: normal quit, crash, or a kill."""
+    process is gone, by any means: normal quit, crash, or a kill.
+
+    On POSIX this now matters even for a clean kill: the packaged backend is
+    spawned `detached` there (its own process group, so Electron's own
+    stopBackend() can kill the whole PyInstaller bootloader tree via
+    killpg), which also means it's no longer in Electron's process group and
+    so no longer gets reaped for free by a SIGKILL sent to that group (e.g.
+    Force Quit, or any kill that skips Electron's normal quit event). This
+    poll is what replaces that lost safety net."""
     pid = os.environ.get("GRABBR_PARENT_PID")
-    if not pid or os.name != "nt":
+    if not pid:
         return
-    PROCESS_SYNCHRONIZE = 0x00100000
-    INFINITE = 0xFFFFFFFF
-    handle = ctypes.windll.kernel32.OpenProcess(PROCESS_SYNCHRONIZE, False, int(pid))
-    if not handle:
-        return
-    ctypes.windll.kernel32.WaitForSingleObject(handle, INFINITE)
+    pid = int(pid)
+    if os.name == "nt":
+        PROCESS_SYNCHRONIZE = 0x00100000
+        INFINITE = 0xFFFFFFFF
+        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_SYNCHRONIZE, False, pid)
+        if not handle:
+            return
+        ctypes.windll.kernel32.WaitForSingleObject(handle, INFINITE)
+    else:
+        # No blocking wait-for-exit primitive without extra dependencies;
+        # signal 0 raises if the pid is gone (or ESRCH) without actually
+        # sending a signal, which is the standard portable "is it alive"
+        # check. A few seconds of staleness on exit is an acceptable
+        # trade-off for not pulling in a new dependency for this alone.
+        while True:
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                break
+            time.sleep(3)
     log.warning("Parent process %s exited; shutting down.", pid)
     os._exit(0)
 

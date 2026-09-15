@@ -531,10 +531,13 @@ function ToolRow({ name, tool, live, onInstall, t, desc }) {
     update:    { show: true,  label: t('settings.toolUpdate'),    variant: 'default' },
     current:   { show: false },
     installed: { show: true,  label: t('settings.toolReinstall'), variant: 'ghost' },
+    unsupported: { show: false },
   }[avail] || { show: false };
 
   let statusLine;
-  if (avail === 'install') {
+  if (avail === 'unsupported') {
+    statusLine = <span className="inline-flex items-center gap-1 text-muted-foreground"><XCircle className="w-3.5 h-3.5" /> {t('settings.toolUnsupported')}</span>;
+  } else if (avail === 'install') {
     statusLine = <span className="inline-flex items-center gap-1"><XCircle className="w-3.5 h-3.5" /> {t('settings.toolMissing')} · ~{tool?.approx_mb || '?'} MB</span>;
   } else if (avail === 'update') {
     statusLine = <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">

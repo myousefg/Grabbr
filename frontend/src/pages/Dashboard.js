@@ -84,7 +84,10 @@ export default function Dashboard() {
       if (quality !== 'best') o.quality = quality;
       if (format && format !== 'mp4') o.format = format;
     }
-    if (preset !== 'none') o.preset_id = preset;
+    // allYoutube guard here too, not just on hiding the select: the picked
+    // value otherwise lingers in state and would still get attached (to no
+    // effect) if the user pastes a YouTube URL after choosing a preset.
+    if (preset !== 'none' && !allYoutube) o.preset_id = preset;
     return Object.keys(o).length ? o : undefined;
   };
 
@@ -214,7 +217,10 @@ export default function Dashboard() {
               </Select>
             </>
           )}
-          {presets.length > 0 && (
+          {/* Presets are gallery-dl config overrides - they have no effect on
+              the separate yt-dlp path a YouTube URL takes, so offering one
+              here would apply silently to nothing. */}
+          {presets.length > 0 && !allYoutube && (
             <Select value={preset} onValueChange={setPreset}>
               <SelectTrigger className="w-40 ms-auto" data-testid="preset-select"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -224,7 +230,7 @@ export default function Dashboard() {
             </Select>
           )}
           <Select value={mode} onValueChange={setMode}>
-            <SelectTrigger className={`w-[190px] ${presets.length > 0 ? '' : 'ms-auto'}`} data-testid="mode-select"><SelectValue /></SelectTrigger>
+            <SelectTrigger className={`w-[190px] ${presets.length > 0 && !allYoutube ? '' : 'ms-auto'}`} data-testid="mode-select"><SelectValue /></SelectTrigger>
             <SelectContent>
               {MODES.map(m => <SelectItem key={m} value={m}>{t(`dashboard.mode.${m}`)}</SelectItem>)}
             </SelectContent>

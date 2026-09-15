@@ -224,6 +224,7 @@
     "toolUpToDate": "Up to date",
     "toolDownloaded": "Installed",
     "toolMissing": "Not installed",
+    "toolUnsupported": "No one-click installer for this OS — install via your system package manager",
     "tool_downloading": "Downloading",
     "tool_installing": "Installing",
     "files": "FILES",
