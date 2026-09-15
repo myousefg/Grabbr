@@ -22,29 +22,47 @@
   #conn.ok .dot { background: #34d399; }
   #conn.bad .dot { background: #f87171; }
   #conn.warn .dot { background: #f59e0b; }
-  a#options-link { display: block; margin-top: 12px; font-size: 11px; color: #71717a; text-decoration: none; }
-  a#options-link:hover { color: #a1a1aa; text-decoration: underline; }
+  #pair p.hint { font-size: 11px; color: #a1a1aa; margin: 0 0 10px; line-height: 1.5; }
+  #pair input { width: 100%; box-sizing: border-box; background: #171717; border: 1px solid #262626; border-radius: 6px; color: #fafafa; padding: 8px 10px; font-family: monospace; font-size: 12px; margin-bottom: 10px; }
+  #pair input:focus { outline: none; border-color: #525252; }
+  button#pair-connect { width: 100%; background: #fafafa; color: #0a0a0a; border: none; border-radius: 6px; padding: 9px 14px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  button#pair-connect:disabled { opacity: 0.5; cursor: default; }
+  a#options-link, a#disconnect-link { display: inline-block; margin-top: 12px; font-size: 11px; color: #71717a; text-decoration: none; }
+  a#options-link:hover, a#disconnect-link:hover { color: #a1a1aa; text-decoration: underline; }
+  a#disconnect-link { float: right; }
 </style>
 </head>
 <body>
   <h1><img src="icons/icon32.png" alt="" /> Send to Grabbr</h1>
   <div id="conn"><span class="dot" aria-hidden="true"></span><span id="conn-text">Checking connection…</span></div>
-  <p id="url">Loading…</p>
-  <div class="row" id="yt-row" hidden>
-    <select id="quality" aria-label="Video quality">
-      <option value="best">Best quality</option>
-      <option value="1080">1080p</option>
-      <option value="720">720p</option>
-      <option value="480">480p</option>
-      <option value="360">360p</option>
-    </select>
-    <select id="format" aria-label="Format">
-      <option value="mp4">MP4</option>
-      <option value="mp3">MP3 (audio)</option>
-    </select>
+
+  <div id="pair" hidden>
+    <p class="hint">Open Grabbr &rarr; Settings &rarr; Browser extension &rarr; Enable, then paste the
+      pairing code below.</p>
+    <input id="pair-code" type="text" placeholder="paste code here" autocomplete="off" spellcheck="false" />
+    <button id="pair-connect">Connect</button>
   </div>
-  <button id="send">Send to Grabbr</button>
+
+  <div id="send-area" hidden>
+    <p id="url">Loading…</p>
+    <div class="row" id="yt-row" hidden>
+      <select id="quality" aria-label="Video quality">
+        <option value="best">Best quality</option>
+        <option value="1080">1080p</option>
+        <option value="720">720p</option>
+        <option value="480">480p</option>
+        <option value="360">360p</option>
+      </select>
+      <select id="format" aria-label="Format">
+        <option value="mp4">MP4</option>
+        <option value="mp3">MP3 (audio)</option>
+      </select>
+    </div>
+    <button id="send">Send to Grabbr</button>
+  </div>
+
   <div id="status"></div>
+  <a href="#" id="disconnect-link" hidden>Disconnect</a>
   <a href="#" id="options-link">Connection settings</a>
   <script src="popup.js"></script>
 </body>
