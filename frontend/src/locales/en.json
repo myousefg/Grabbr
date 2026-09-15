@@ -297,6 +297,8 @@
     "cookieUploaded": "cookies.txt imported, covering {{domains}}.",
     "cookieUploadFailed": "That file is not a valid cookies.txt.",
     "cookieRemoved": "cookies.txt removed.",
+    "importBookmarks": "Import my bookmarks",
+    "importQueued": "Import queued",
     "username": "Username / email",
     "password": "Password",
     "configured": "Configured",

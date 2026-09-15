@@ -25,7 +25,11 @@ export const SITE_GROUPS = [
         probe: 'https://www.instagram.com/instagram/' },
       { id: 'twitter', name: 'Twitter / X', domain: 'x.com', auth: 'cookies',
         note: 'Public tweets work without login. Needed for NSFW, protected, or rate-limited accounts.',
-        probe: 'https://x.com/X' },
+        probe: 'https://x.com/X',
+        // Bookmarks live at a fixed URL for whoever's logged in, so this
+        // needs no username - unlike Reddit saved / Instagram saved, which
+        // are per-username paths Grabbr doesn't have a field for yet.
+        savedUrl: 'https://x.com/i/bookmarks', savedLabelKey: 'sites.importBookmarks' },
       { id: 'tiktok', name: 'TikTok', domain: 'tiktok.com', auth: 'cookies',
         note: 'Videos download through yt-dlp. Install it in Settings, Tools. Cookies needed for profiles, likes, saved, and stories. Single public videos usually work without.',
         probe: 'https://www.tiktok.com/@tiktok' },

@@ -2,7 +2,7 @@ import { useEffect, useId, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  ChevronDown, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Upload, Trash2, X,
+  ChevronDown, Loader2, CheckCircle2, AlertTriangle, ExternalLink, Upload, Trash2, X, Bookmark,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -49,7 +49,7 @@ function isConfigured(site, row, covered) {
 
 function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies }) {
   const { t } = useI18n();
-  const { oauth, clearOauth } = useJobs();
+  const { oauth, clearOauth, createJobs } = useJobs();
   const [d, setD] = useState({});
   const [busy, setBusy] = useState(false);
   const [verify, setVerify] = useState(null);
@@ -108,6 +108,16 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
       await sitesApi.update(site.id, { cookies_mode: 'auto' }).catch(() => {});
       toast.success(t('sites.cookieRemoved'));
       onCookies?.();
+    } catch { toast.error(t('sites.saveFailed')); }
+    finally { setBusy(false); }
+  };
+
+  const importSaved = async () => {
+    if (!site.savedUrl) return;
+    setBusy(true);
+    try {
+      await createJobs([site.savedUrl]);
+      toast.success(t('sites.importQueued'));
     } catch { toast.error(t('sites.saveFailed')); }
     finally { setBusy(false); }
   };
@@ -206,6 +216,12 @@ function SiteRow({ site, row, ck, open, onToggle, onCollapse, onSaved, onCookies
                 {site.probe && (
                   <Button size="sm" variant="outline" onClick={runVerify} disabled={verify?.loading}>
                     {verify?.loading && <Loader2 className="w-3.5 h-3.5 me-1 animate-spin" />}{t('sites.verify')}
+                  </Button>
+                )}
+                {site.savedUrl && covered && (
+                  <Button size="sm" variant="outline" onClick={importSaved} disabled={busy}>
+                    {busy ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" aria-hidden="true" /> : <Bookmark className="w-3.5 h-3.5 me-1.5" aria-hidden="true" />}
+                    {t(site.savedLabelKey)}
                   </Button>
                 )}
                 {verify && !verify.loading && (
