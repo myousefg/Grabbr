@@ -779,6 +779,7 @@ class JobManager:
         self.queue: "asyncio.Queue[str]" = asyncio.Queue()
         self.running: dict = {}
         self.cancelled: set = set()
+        self.pausing: set = set()
         self.max_concurrent: int = 2
         self.cond: Optional[asyncio.Condition] = None
 
@@ -798,49 +799,78 @@ class JobManager:
     async def enqueue(self, job_id: str):
         await self.queue.put(job_id)
 
+    async def _stop_proc(self, proc):
+        """A graceful interrupt first (SIGINT / CTRL_BREAK) so gallery-dl/
+        yt-dlp get a chance to close whatever file they're mid-write on
+        cleanly, then the same force-kill either way - a bare graceful
+        signal alone was tested and found unreliable at actually stopping
+        either tool (confirmed live: gallery-dl kept downloading for 7+
+        seconds past one with no sign of stopping). The force-kill doesn't
+        cost Resume anything real: gallery-dl's download-archive records
+        each file as it finishes, so only the one file that was mid-write
+        at kill time is lost, not anything already completed."""
+        pid = proc.pid
+        if os.name == "nt":
+            import signal
+            try:
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
+                await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            # taskkill /T needs the target PID to still be alive to walk
+            # its live tree, so it must run BEFORE proc.kill() - killing
+            # the tracked PID first let an already-spawned grandchild
+            # (e.g. yt-dlp re-executing itself as its own child) survive
+            # as an orphan, since taskkill can no longer discover a live
+            # tree through an already-dead parent (confirmed live: a
+            # cancelled yt-dlp job left its child running for this exact
+            # reason). /F on the root already force-kills the whole tree,
+            # so this alone reaps everything; proc.kill() is just a
+            # fallback in case taskkill itself failed.
+            try:
+                await asyncio.to_thread(
+                    subprocess.run, ["taskkill", "/F", "/T", "/PID", str(pid)],
+                    capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW,
+                )
+            except Exception:
+                pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
+        else:
+            import signal
+            try:
+                proc.send_signal(signal.SIGINT)
+                await asyncio.sleep(0.5)
+            except Exception:
+                pass
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
     async def cancel(self, job_id: str):
         self.cancelled.add(job_id)
         proc = self.running.get(job_id)
         if proc and proc.returncode is None:
-            pid = proc.pid
-            if os.name == "nt":
-                import signal
-                try:
-                    proc.send_signal(signal.CTRL_BREAK_EVENT)
-                    await asyncio.sleep(0.3)
-                except Exception:
-                    pass
-                # taskkill /T needs the target PID to still be alive to walk
-                # its live tree, so it must run BEFORE proc.kill() - killing
-                # the tracked PID first let an already-spawned grandchild
-                # (e.g. yt-dlp re-executing itself as its own child) survive
-                # as an orphan, since taskkill can no longer discover a live
-                # tree through an already-dead parent (confirmed live: a
-                # cancelled yt-dlp job left its child running for this exact
-                # reason). /F on the root already force-kills the whole tree,
-                # so this alone reaps everything; proc.kill() is just a
-                # fallback in case taskkill itself failed.
-                try:
-                    await asyncio.to_thread(
-                        subprocess.run, ["taskkill", "/F", "/T", "/PID", str(pid)],
-                        capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW,
-                    )
-                except Exception:
-                    pass
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-            else:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
+            await self._stop_proc(proc)
         else:
             row = _job_row(job_id)
             if row and row["status"] == "queued":
                 db_run("UPDATE jobs SET status='canceled', finished_at=? WHERE id=?", (_now(), job_id))
                 await ws_manager.broadcast({"type": "job.update", "job": _job_public(_job_row(job_id))})
+
+    async def pause(self, job_id: str):
+        """Same stop mechanics as cancel(), just tracked in a separate set
+        so the exit handler reports status 'paused' instead of 'canceled'.
+        Only meaningful for a job that's actually running; there's nothing
+        to pause on one still queued."""
+        proc = self.running.get(job_id)
+        if not proc or proc.returncode is not None:
+            return
+        self.pausing.add(job_id)
+        await self._stop_proc(proc)
 
     async def _dispatch_loop(self):
         while True:
@@ -957,7 +987,9 @@ class JobManager:
 
         cancelled = job_id in self.cancelled
         self.cancelled.discard(job_id)
-        status = "canceled" if cancelled else ("done" if rc == 0 else "error")
+        paused = job_id in self.pausing
+        self.pausing.discard(job_id)
+        status = "paused" if paused else ("canceled" if cancelled else ("done" if rc == 0 else "error"))
 
         blob = "\n".join(errors[-40:])
         try:
@@ -1118,6 +1150,8 @@ class JobManager:
 
         cancelled = job_id in self.cancelled
         self.cancelled.discard(job_id)
+        paused = job_id in self.pausing
+        self.pausing.discard(job_id)
 
         final_path = ""
         try:
@@ -1131,7 +1165,7 @@ class JobManager:
                 pass
 
         written_files = [final_path] if final_path else []
-        status = "canceled" if cancelled else ("done" if rc == 0 and final_path else "error")
+        status = "paused" if paused else ("canceled" if cancelled else ("done" if rc == 0 and final_path else "error"))
         counts = {
             "files_ok": 1 if status == "done" else 0,
             "files_skipped": 0,
@@ -2222,6 +2256,17 @@ async def cancel_job(job_id: str):
     if not _job_row(job_id):
         raise HTTPException(404, "Job not found")
     await manager.cancel(job_id)
+    return {"ok": True}
+
+
+@api.post("/jobs/{job_id}/pause")
+async def pause_job(job_id: str):
+    row = _job_row(job_id)
+    if not row:
+        raise HTTPException(404, "Job not found")
+    if row["status"] != "running":
+        raise HTTPException(409, "Only a running job can be paused")
+    await manager.pause(job_id)
     return {"ok": True}
 
 

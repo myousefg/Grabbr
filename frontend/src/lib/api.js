@@ -26,6 +26,7 @@ export const jobsApi = {
   files:  (id)            => api.get(`/jobs/${id}/files`).then(r => r.data),
   create: (urls, options) => api.post('/jobs', { urls, options }).then(r => r.data),
   cancel: (id)            => api.post(`/jobs/${id}/cancel`).then(r => r.data),
+  pause:  (id)            => api.post(`/jobs/${id}/pause`).then(r => r.data),
   retry:  (id)            => api.post(`/jobs/${id}/retry`).then(r => r.data),
   remove: (id)            => api.delete(`/jobs/${id}`).then(r => r.data),
   deleteFiles: (id)       => api.delete(`/jobs/${id}/files`).then(r => r.data),

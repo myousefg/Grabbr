@@ -2,7 +2,7 @@ import { useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  Loader2, X, RotateCcw, Trash2, FolderOpen, Terminal, ChevronDown, KeyRound, Timer,
+  Loader2, X, RotateCcw, Trash2, FolderOpen, Terminal, ChevronDown, KeyRound, Timer, Pause, Play,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -17,6 +17,7 @@ import { snappy } from '@/lib/motion';
 const STATUS_STYLE = {
   queued:   'bg-muted text-muted-foreground',
   running:  'bg-primary text-primary-foreground',
+  paused:   'bg-amber-500/15 text-amber-600 dark:text-amber-400',
   done:     'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
   error:    'bg-destructive/15 text-destructive',
   canceled: 'bg-muted text-muted-foreground',
@@ -32,7 +33,7 @@ const LINE_COLOR = {
 
 export default function JobCard({ job }) {
   const { t } = useI18n();
-  const { logs, cancel, retry, remove, setJobOpen } = useJobs();
+  const { logs, cancel, pause, retry, remove, setJobOpen } = useJobs();
   const [open, setOpen] = useState(false);
   const [fullLog, setFullLog] = useState(null);
   const logPanelId = useId();
@@ -119,23 +120,31 @@ export default function JobCard({ job }) {
       )}
 
       <div className="flex items-center gap-2 flex-wrap">
+        {job.status === 'running' && (
+          <Button size="sm" variant="ghost" onClick={() => pause(job.id)} data-testid="job-pause">
+            <Pause className="w-3.5 h-3.5 me-1" aria-hidden="true" /> {t('dashboard.pause')}
+          </Button>
+        )}
         {active && (
           <Button size="sm" variant="ghost" onClick={() => cancel(job.id)} data-testid="job-cancel">
-            <X className="w-3.5 h-3.5 me-1" /> {t('dashboard.cancel')}
+            <X className="w-3.5 h-3.5 me-1" aria-hidden="true" /> {t('dashboard.stop')}
           </Button>
         )}
         {!active && (
           <>
             <Button size="sm" variant="ghost" onClick={() => retry(job.id)} data-testid="job-retry">
-              <RotateCcw className="w-3.5 h-3.5 me-1" /> {t('dashboard.retry')}
+              {job.status === 'paused'
+                ? <Play className="w-3.5 h-3.5 me-1" aria-hidden="true" />
+                : <RotateCcw className="w-3.5 h-3.5 me-1" aria-hidden="true" />}
+              {job.status === 'paused' ? t('dashboard.resume') : t('dashboard.retry')}
             </Button>
             {isElectron && job.dest_dir && (
               <Button size="sm" variant="ghost" onClick={openFolder}>
-                <FolderOpen className="w-3.5 h-3.5 me-1" /> {t('dashboard.openFolder')}
+                <FolderOpen className="w-3.5 h-3.5 me-1" aria-hidden="true" /> {t('dashboard.openFolder')}
               </Button>
             )}
             <Button size="sm" variant="ghost" onClick={() => remove(job.id)} data-testid="job-remove">
-              <Trash2 className="w-3.5 h-3.5 me-1" /> {t('dashboard.remove')}
+              <Trash2 className="w-3.5 h-3.5 me-1" aria-hidden="true" /> {t('dashboard.remove')}
             </Button>
           </>
         )}

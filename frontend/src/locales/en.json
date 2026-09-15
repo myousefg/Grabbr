@@ -51,6 +51,9 @@
     "skipped": "skipped",
     "errors": "errors",
     "cancel": "Cancel",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
     "retry": "Retry",
     "remove": "Remove",
     "openFolder": "Open folder",
@@ -66,6 +69,7 @@
     "status": {
       "queued": "QUEUED",
       "running": "DOWNLOADING",
+      "paused": "PAUSED",
       "done": "DONE",
       "error": "ERROR",
       "canceled": "CANCELED"

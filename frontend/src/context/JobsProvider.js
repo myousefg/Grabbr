@@ -6,7 +6,7 @@ import { useSettings } from '@/context/SettingsProvider';
 
 const JobsContext = createContext(null);
 
-const ACTIVE = new Set(['queued', 'running']);
+const ACTIVE = new Set(['queued', 'running', 'paused']);
 const LOG_CAP = 250;
 const WS_MIN_DELAY = 1000;
 const WS_MAX_DELAY = 30000;
@@ -216,6 +216,11 @@ export function JobsProvider({ children }) {
     catch (e) { if (e?.response?.status === 404) dropLocal(id); else toast.error('Could not cancel'); }
   }, [dropLocal]);
 
+  const pause = useCallback(async (id) => {
+    try { await jobsApi.pause(id); }
+    catch (e) { if (e?.response?.status === 404) dropLocal(id); else toast.error('Could not pause'); }
+  }, [dropLocal]);
+
   const retry = useCallback(async (id) => {
     try { await jobsApi.retry(id); setLogs(p => ({ ...p, [id]: [] })); }
     catch (e) { if (e?.response?.status === 404) dropLocal(id); else toast.error('Could not retry'); }
@@ -263,7 +268,7 @@ export function JobsProvider({ children }) {
     <JobsContext.Provider value={{
       jobs, list, active, finished, queueView, logs, connected,
       oauth, clearOauth, tools, setJobOpen,
-      refresh, createJobs, cancel, retry, remove, deleteFiles, clearFinished,
+      refresh, createJobs, cancel, pause, retry, remove, deleteFiles, clearFinished,
     }}>
       {children}
     </JobsContext.Provider>
