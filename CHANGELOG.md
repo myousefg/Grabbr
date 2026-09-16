@@ -3,6 +3,18 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.4] - 2026-09-16
+
+### Fixed
+- Pause and Cancel could silently do nothing on a YouTube download and let it run to completion
+  anyway. yt-dlp runs its accelerated downloader (aria2c) in a way that's deliberately immune to
+  the graceful stop signal Grabbr tried first, which could kill yt-dlp's own process while
+  leaving the actual download running untouched underneath it. The graceful step is removed;
+  stopping a job now force-kills the whole process tree directly, which reliably reaches
+  everything, aria2c included.
+- Windows' installed-apps list showed "Grabbr 1.3.3" as the name, duplicating the version shown
+  right below it; it now just says "Grabbr".
+
 ## [1.3.3] - 2026-09-16
 
 ### Fixed
