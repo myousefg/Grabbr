@@ -32,7 +32,7 @@ export default function Settings() {
   const { t, lang, setLang } = useI18n();
   const { theme, setTheme } = useTheme();
   const { tools: liveTools } = useJobs();
-  const { settings: s, env, saveState, update } = useSettings();
+  const { settings: s, env, saveState, update, reloadSettings } = useSettings();
   const [tools, setTools] = useState({});
   const [showCfg, setShowCfg] = useState(false);
   const [cfg, setCfg] = useState(null);
@@ -101,9 +101,16 @@ export default function Settings() {
   useEffect(() => {
     if (s && extSecret === null) setExtSecret(s.extension_secret || '');
   }, [s, extSecret]);
+  // A pairing code existing just means it's enabled, not that a browser
+  // extension has actually used it - only extension_last_used (set by the
+  // backend the first time a request authenticates with it) means that.
+  const extConnected = !!(extSecret && s?.extension_last_used);
   const enableExtension = async () => {
     setExtBusy(true);
-    try { setExtSecret((await extensionApi.enable()).extension_secret); }
+    try {
+      setExtSecret((await extensionApi.enable()).extension_secret);
+      reloadSettings(); // clears the stale extension_last_used from any old code
+    }
     catch { toast.error(t('settings.saveFailed')); }
     finally { setExtBusy(false); }
   };
@@ -349,7 +356,7 @@ export default function Settings() {
 
       <Section
         label={t('settings.extension')}
-        aside={extSecret ? (
+        aside={extConnected ? (
           <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-600 dark:text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" /> {t('settings.extensionConnected')}
           </span>
@@ -359,14 +366,16 @@ export default function Settings() {
           </span>
         )}
       >
-        <Row title={t('settings.extensionDownload')} desc={t('settings.extensionDownloadDesc')}>
-          <Button
-            variant="outline" size="sm"
-            onClick={() => openExternal('https://github.com/myousefg/Grabbr/releases/latest/download/Grabbr-Extension.zip')}
-          >
-            <Download className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.extensionDownload')}
-          </Button>
-        </Row>
+        {!extConnected && (
+          <Row title={t('settings.extensionDownload')} desc={t('settings.extensionDownloadDesc')}>
+            <Button
+              variant="outline" size="sm"
+              onClick={() => openExternal('https://github.com/myousefg/Grabbr/releases/latest/download/Grabbr-Extension.zip')}
+            >
+              <Download className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.extensionDownload')}
+            </Button>
+          </Row>
+        )}
         {!extSecret ? (
           <Row title={t('settings.extensionEnable')} desc={t('settings.extensionEnableDesc')}>
             <Button size="sm" onClick={enableExtension} disabled={extBusy || extSecret === null}>

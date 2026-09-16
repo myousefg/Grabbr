@@ -16,6 +16,7 @@ export function SettingsProvider({ children }) {
   const savedTimer = useRef(null);
 
   const loadEnv = useCallback(() => envApi.get().then(setEnv).catch(() => {}), []);
+  const loadSettings = useCallback(() => settingsApi.get().then(setSettings).catch(() => {}), []);
 
   useEffect(() => {
     settingsApi.get().then(setSettings).catch(() => setSettings({}));
@@ -48,7 +49,7 @@ export function SettingsProvider({ children }) {
   useEffect(() => () => { clearTimeout(timer.current); clearTimeout(savedTimer.current); }, []);
 
   return (
-    <SettingsContext.Provider value={{ settings, env, saveState, update, reloadEnv: loadEnv }}>
+    <SettingsContext.Provider value={{ settings, env, saveState, update, reloadEnv: loadEnv, reloadSettings: loadSettings }}>
       {children}
     </SettingsContext.Provider>
   );
