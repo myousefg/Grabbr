@@ -3,6 +3,16 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.3] - 2026-09-16
+
+### Fixed
+- Cancelling or pausing a download very late (right as it was about to finish anyway) could
+  still report it as canceled/paused even though the file had actually completed and downloaded
+  successfully. It now correctly shows as done whenever that happens.
+- Settings > Browser extension showed "Connected" as soon as you clicked Enable, before the
+  extension itself had ever actually used the pairing code. It now only shows Connected once a
+  real connection has happened, and the Download button hides once it has.
+
 ## [1.3.2] - 2026-09-16
 
 ### Fixed
