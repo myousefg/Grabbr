@@ -408,6 +408,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
             ("settings", "default_range", "TEXT DEFAULT ''"),
             ("settings", "notifications_enabled", "INTEGER DEFAULT 1"),
             ("settings", "extension_secret", "TEXT DEFAULT ''"),
+            ("settings", "extension_last_used", "TEXT DEFAULT ''"),
             ("settings", "gdl_overrides", "TEXT DEFAULT '{}'"),
             ("settings", "presets", "TEXT DEFAULT '[]'"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
@@ -1089,12 +1090,25 @@ class JobManager:
         self.cancelled.discard(job_id)
         paused = job_id in self.pausing
         self.pausing.discard(job_id)
-        # cancelled wins if both are set: Stop is still offered while a job
-        # shows as "running" (status doesn't flip to paused until the
-        # process actually exits), so Pause-then-Stop in that window adds
-        # the job to both sets before either request has, meaning a Stop
-        # the user explicitly asked for should never come back as "paused".
-        status = "canceled" if cancelled else ("paused" if paused else ("done" if rc == 0 else "error"))
+        # A genuine successful exit wins even over a cancel/pause request:
+        # the kill in _stop_proc() races the download's own natural finish,
+        # and a fast job can complete before the kill lands (confirmed
+        # live - a taskkill'd process essentially never exits 0 on its own,
+        # so rc==0 here means it actually finished, not that our kill was
+        # silently ignored). Reporting that as "canceled" while a complete,
+        # valid download sits in the destination folder is actively
+        # misleading. Only once it's NOT a clean success does a cancel
+        # still win over a pause: Stop is offered while a job shows as
+        # "running" (status doesn't flip to paused until the process
+        # actually exits), so Pause-then-Stop in that window adds the job
+        # to both sets before either request has, and a Stop the user
+        # explicitly asked for should never come back as "paused".
+        status = (
+            "done" if rc == 0
+            else "canceled" if cancelled
+            else "paused" if paused
+            else "error"
+        )
 
         blob = "\n".join(errors[-40:])
         try:
@@ -1275,8 +1289,16 @@ class JobManager:
                 pass
 
         written_files = [final_path] if final_path else []
-        # cancelled wins if both are set - see the matching comment in _run().
-        status = "canceled" if cancelled else ("paused" if paused else ("done" if rc == 0 and final_path else "error"))
+        # A genuine successful exit wins even over cancel/pause - see the
+        # matching comment in _run(). rc == 0 with a final_path means yt-dlp
+        # actually finished and moved the file into place, which a taskkill
+        # can't produce on its own.
+        status = (
+            "done" if (rc == 0 and final_path)
+            else "canceled" if cancelled
+            else "paused" if paused
+            else "error"
+        )
         counts = {
             "files_ok": 1 if status == "done" else 0,
             "files_skipped": 0,
@@ -1960,6 +1982,12 @@ async def _local_guard(request: Request, call_next):
         sent = request.headers.get("x-grabbr-extension-token") or ""
         if not secret or not secrets.compare_digest(sent, secret):
             return JSONResponse({"detail": "unauthorized"}, status_code=401)
+        # Settings only shows "Connected" once the extension has actually
+        # authenticated with this code, not just because one was generated -
+        # enabling pairing and a browser extension actually using it are two
+        # different things, and conflating them was confusing (Settings said
+        # Connected before any extension had ever spoken to the backend).
+        db_run("UPDATE settings SET extension_last_used=? WHERE id='singleton'", (_now(),))
         return await call_next(request)
     # OPTIONS is CORS preflight: no body, no side effects, and it can't carry the
     # token. Let CORSMiddleware answer it (it still enforces the origin allowlist).
@@ -2291,7 +2319,13 @@ async def write_settings(body: SettingsIn):
 @api.post("/extension-pairing")
 def enable_extension():
     secret = secrets.token_hex(24)
-    db_run("UPDATE settings SET extension_secret=? WHERE id='singleton'", (secret,))
+    # Regenerating invalidates whatever last used this route with the old
+    # code, so "connected" shouldn't keep reading true off a stale timestamp
+    # until something actually authenticates with the new one.
+    db_run(
+        "UPDATE settings SET extension_secret=?, extension_last_used='' WHERE id='singleton'",
+        (secret,),
+    )
     return {"extension_secret": secret}
 
 
