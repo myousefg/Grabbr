@@ -46,5 +46,12 @@ $readme = (Get-Content -Raw -LiteralPath $readmePath).Replace($OldVersion, $NewV
 Set-Content -LiteralPath $readmePath -Value $readme -NoNewline
 Write-Host "  [x] README.md"
 
+# The browser extension ships out of band (zip attached to a GitHub release,
+# not the installer), but keeping its version number equal to the app's
+# avoids the two silently drifting apart with no way to tell which app
+# version an extension build goes with.
+Update-File (Join-Path $root 'extension\manifest.json') `
+    '("version":\s*")[\d.]+(")' ('${1}' + $NewVersion + '${2}')
+
 # build-exe.bat reads its version straight from package.json (updated above)
 # rather than keeping its own copy, so nothing else to sync here.

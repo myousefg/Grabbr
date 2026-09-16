@@ -21,6 +21,7 @@ const THIRD_PARTY = [
   ['gallery-dl', 'GPL-2.0-only', 'The download engine. Bundled as an unmodified executable and run as a separate process. Source: github.com/mikf/gallery-dl'],
   ['yt-dlp', 'Unlicense', 'Optional video downloader, fetched on demand. Source: github.com/yt-dlp/yt-dlp'],
   ['FFmpeg', 'LGPL-2.1-or-later / GPL', 'Optional media processing (gyan.dev release build), fetched on demand. Source: ffmpeg.org'],
+  ['aria2c', 'GPL-2.0-or-later', 'Optional accelerated downloader, fetched on demand. Source: github.com/aria2/aria2'],
   ['Electron, React, and other npm packages', 'MIT and compatible', 'Each package retains its own license; see its distribution for full terms.'],
 ];
 
@@ -63,7 +64,6 @@ export default function LegalSection() {
             <>
               <DialogHeader>
                 <DialogTitle className="tracking-tight">{t('settings.privacy')}</DialogTitle>
-                <DialogDescription>{t('settings.privacyTagline')}</DialogDescription>
               </DialogHeader>
               <Body>
                 <p>{t('settings.privacyBody1')}</p>
@@ -76,7 +76,6 @@ export default function LegalSection() {
             <>
               <DialogHeader>
                 <DialogTitle className="tracking-tight">{t('settings.license')}</DialogTitle>
-                <DialogDescription>{t('settings.licenseTagline')}</DialogDescription>
               </DialogHeader>
               <Body>
                 <p className="text-foreground font-medium">MIT License</p>

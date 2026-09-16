@@ -92,7 +92,9 @@ export default function JobCard({ job }) {
       {active && (
         job.total > 0
           ? <Progress value={Math.min(100, ((job.files_ok || 0) / job.total) * 100)} className="h-1" />
-          : <Progress indeterminate className="h-1" />
+          : job.status === 'running' && job.pct != null
+            ? <Progress value={job.pct} className="h-1" />
+            : <Progress indeterminate className="h-1" />
       )}
 
       {job.status === 'running' && job.current_file && (

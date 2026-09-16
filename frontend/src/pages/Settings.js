@@ -359,6 +359,14 @@ export default function Settings() {
           </span>
         )}
       >
+        <Row title={t('settings.extensionDownload')} desc={t('settings.extensionDownloadDesc')}>
+          <Button
+            variant="outline" size="sm"
+            onClick={() => openExternal('https://github.com/myousefg/Grabbr/releases/latest/download/Grabbr-Extension.zip')}
+          >
+            <Download className="w-3.5 h-3.5 me-1.5" aria-hidden="true" /> {t('settings.extensionDownload')}
+          </Button>
+        </Row>
         {!extSecret ? (
           <Row title={t('settings.extensionEnable')} desc={t('settings.extensionEnableDesc')}>
             <Button size="sm" onClick={enableExtension} disabled={extBusy || extSecret === null}>
@@ -368,7 +376,7 @@ export default function Settings() {
           </Row>
         ) : (
           <>
-            <Row title={t('settings.extensionCode')} desc={t('settings.extensionCodeDesc', { folder: 'extension/' })}>
+            <Row title={t('settings.extensionCode')} desc={t('settings.extensionCodeDesc')}>
               <code className="font-mono text-[11px] text-muted-foreground break-all max-w-[220px] block">{extSecret}</code>
               <Button
                 variant="outline" size="icon" onClick={copyExtensionSecret}
@@ -417,7 +425,7 @@ export default function Settings() {
         <ToolRow name="gallery-dl" tool={tools['gallery-dl']} live={liveTools['gallery-dl']} onInstall={installTool} t={t} />
         <ToolRow name="ffmpeg" tool={tools['ffmpeg']} live={liveTools['ffmpeg']} onInstall={installTool} t={t} />
         <ToolRow name="yt-dlp" tool={tools['yt-dlp']} live={liveTools['yt-dlp']} onInstall={installTool} t={t} />
-        <ToolRow name="aria2c" tool={tools['aria2c']} live={liveTools['aria2c']} onInstall={installTool} t={t} desc={t('settings.aria2cDesc')} />
+        <ToolRow name="aria2c" tool={tools['aria2c']} live={liveTools['aria2c']} onInstall={installTool} t={t} />
       </Section>
 
       <Section label={t('settings.about')}>

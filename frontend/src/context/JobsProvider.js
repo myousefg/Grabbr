@@ -161,6 +161,7 @@ export function JobsProvider({ children }) {
               ...prev[msg.id],
               files_ok: msg.files_ok, files_skipped: msg.files_skipped,
               files_error: msg.files_error, current_file: msg.current_file,
+              pct: msg.pct,
             },
           } : prev);
         } else if (msg.type === 'job.line') {

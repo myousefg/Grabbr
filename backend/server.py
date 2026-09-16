@@ -792,6 +792,15 @@ _YTDLP_ERROR = re.compile(r"^ERROR:\s*(.*)$")
 _YTDLP_WARNING = re.compile(r"^WARNING:\s*(.*)$")
 
 
+def _human_bytes(n: int) -> str:
+    size = float(n)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{size:.0f}{unit}" if unit == "B" else f"{size:.1f}{unit}"
+        size /= 1024
+    return f"{size:.1f}GB"
+
+
 def classify_ytdlp_line(raw: str) -> tuple:
     line = raw.rstrip("\r\n").strip()
     if not line:
@@ -1232,12 +1241,16 @@ class JobManager:
                 if now - last_flush > 0.25:
                     last_flush = now
                     logf.flush()
-                    label = f"{cur_bytes}/{tot_bytes}" if (cur_bytes is not None and tot_bytes) else ""
+                    label = (
+                        f"{_human_bytes(cur_bytes)} / {_human_bytes(tot_bytes)}"
+                        if (cur_bytes is not None and tot_bytes) else ""
+                    )
+                    pct = round(cur_bytes * 100 / tot_bytes) if (cur_bytes is not None and tot_bytes) else None
                     db_run("UPDATE jobs SET current_file=? WHERE id=?", (label[:400], job_id))
                     await ws_manager.broadcast({
                         "type": "job.progress", "id": job_id,
                         "files_ok": 0, "files_skipped": 0, "files_error": len(errors),
-                        "current_file": label,
+                        "current_file": label, "pct": pct,
                     })
             rc = await proc.wait()
         finally:
@@ -1580,6 +1593,20 @@ def _aria2c_version(exe: str) -> str:
         return ""
 
 
+def _gdl_pretty_latest(installed: str, latest: str) -> str:
+    """gdl-org/builds tags its releases with a bare date (e.g. "2026.09.16"),
+    with no version number anywhere in the release itself - the "1.32.x-dev"
+    prefix only exists inside the built binary, found out by actually running
+    it. Borrow that prefix from the currently-installed copy (which rarely
+    changes day to day) so "latest" reads the same shape as "have" instead of
+    a date on its own that looks unrelated to the version number next to it.
+    """
+    if not latest or not _DATE_RE.fullmatch(latest):
+        return latest
+    m = re.match(r"^([\d.]+(?:-dev)?):", installed or "")
+    return f"{m.group(1)}:{latest}" if m else latest
+
+
 def find_tool(name: str) -> dict:
     """Resolution + version + update state. name: gallery-dl | ffmpeg | yt-dlp | aria2c"""
     downloaded = tool_path(name)
@@ -1602,13 +1629,14 @@ def find_tool(name: str) -> dict:
         avail = "current"             # up to date
     else:
         avail = "update"
+    latest_display = _gdl_pretty_latest(ver, latest) if name == "gallery-dl" else latest
     return {
         "name": name,
         "found": bool(exe),
         "source": "downloaded" if downloaded else ("path" if on_path else None),
         "path": exe,
         "version": ver,
-        "latest": latest,
+        "latest": latest_display,
         "avail": avail,
         "size": (Path(downloaded).stat().st_size if downloaded and Path(downloaded).exists() else None),
     }
