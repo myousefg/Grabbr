@@ -82,10 +82,14 @@ function HistoryRow({ job }) {
   const cooldown = useCooldownTick(job);
   const flagged = job.hint === 'auth' || job.hint === 'cookies_locked' || job.hint === 'rate_limited';
   // "One flat folder" (or any structure gallery-dl didn't subfolder) puts this
-  // job's files directly in the shared download root; deleting them would
-  // wipe every other job's files too, so the backend refuses and we shouldn't
-  // offer a confirm dialog that promises otherwise.
-  const sharedDest = samePath(job.dest_dir, env?.output_dir);
+  // job's files directly in the shared download root, where a whole-folder
+  // delete would wipe every other job's files too - the backend refuses
+  // that. But every yt-dlp (YouTube) job's dest_dir is *always* the shared
+  // root (yt-dlp has no folder-structure concept of its own to narrow into),
+  // and the backend can still delete those safely by filename instead of by
+  // folder once it actually wrote one (files_ok > 0) - so only pre-emptively
+  // block here when there's nothing at all on record to fall back to.
+  const sharedDest = samePath(job.dest_dir, env?.output_dir) && !(job.files_ok > 0);
 
   const toggle = async () => {
     const next = !open;

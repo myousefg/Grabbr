@@ -2695,21 +2695,45 @@ async def delete_job_files(job_id: str):
     deletable = bool(base_r and base.is_dir() and base_r.is_absolute()
                       and _under_output(base) and base_r not in _output_roots())
 
-    if base and base.is_dir() and not deletable:
-        # dest_dir exists but is a shared/root folder (e.g. Folder structure
-        # is "One flat folder") - refuse rather than silently drop the history
-        # entry while leaving every other job's files sitting right there.
-        raise HTTPException(
-            409,
-            "These files share the main download folder with other downloads, "
-            "so they can't be deleted individually. Use Remove to clear this "
-            "history entry instead, or delete files from the folder directly.",
-        )
-
     removed = 0
     if deletable:
         removed = sum(1 for p in base.rglob("*") if p.is_file())
         shutil.rmtree(base, ignore_errors=True)
+    else:
+        # dest_dir is the shared output root itself - every yt-dlp job lands
+        # here (yt-dlp has no folder-structure concept of its own, so there's
+        # never a per-job subfolder to narrow to), and so can a gallery-dl
+        # job whose files spread too widely to narrow to one shared folder.
+        # Rather than refuse outright, fall back to the exact files this job
+        # is already known to have written (files_json, the same list History
+        # thumbnails use) and delete just those - safe regardless of what
+        # else lives in the shared folder, since these are specific files,
+        # not a directory that might hold other jobs' output too.
+        try:
+            known_files = json.loads(row.get("files_json") or "[]")
+        except Exception:
+            known_files = []
+        targets = []
+        for f in known_files:
+            try:
+                p = Path(f).resolve()
+            except Exception:
+                continue
+            if p.is_file() and _under_output(p):
+                targets.append(p)
+        if not targets:
+            raise HTTPException(
+                409,
+                "These files share the main download folder with other downloads, "
+                "so they can't be deleted individually. Use Remove to clear this "
+                "history entry instead, or delete files from the folder directly.",
+            )
+        for p in targets:
+            try:
+                p.unlink()
+                removed += 1
+            except Exception:
+                pass
 
     db_run("DELETE FROM jobs WHERE id=?", (job_id,))
     _cleanup_job_artifacts(job_id, row.get("log_path"))
