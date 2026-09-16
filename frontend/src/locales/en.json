@@ -118,7 +118,7 @@
     "deleteConfirmDesc": "Permanently erases this job's download folder from disk, then removes the history entry. This cannot be undone.",
     "deleted": "{{count}} file(s) deleted",
     "deleteFailed": "Could not delete files",
-    "sharedFolderNote": "These files share the main download folder with other downloads (Folder structure is set to \"One flat folder\"), so they can't be deleted individually. Use Remove to clear this entry, or delete files from the folder yourself."
+    "sharedFolderNote": "This job's files couldn't be narrowed down from the main download folder, so deleting them here would affect other downloads too. Use Remove to clear this entry, or delete files from the folder yourself."
   },
   "settings": {
     "title": "Settings",
@@ -238,7 +238,10 @@
     "configEditorReset": "Reset",
     "presets": "PRESETS",
     "presetAdd": "Add preset",
-    "presetsEmpty": "No presets yet. A preset is a saved set of gallery-dl options (e.g. images only, or a specific site filter) you can apply to a download from the Dashboard with one click, instead of editing the config every time.",
+    "presetsIntro": "A preset is a gallery-dl config snippet, applied only to a download that picks it from the Dashboard - the same JSON as Settings > Files' config editor, just named and optional per job.",
+    "presetsIntroLink": "See gallery-dl's config reference",
+    "presetsEmpty": "No presets yet - add one below, or start from an example.",
+    "presetStartFrom": "Start from an example:",
     "presetName": "Preset name",
     "presetNamePlaceholder": "e.g. Images only",
     "presetOverrides": "Preset options (JSON)",
