@@ -1082,6 +1082,17 @@ class JobManager:
                             written_files.append(str(Path(dest, text)))
                     elif kind == "skip":
                         counts["files_skipped"] += 1
+                        # A re-run that finds everything already downloaded
+                        # (a bookmarks import re-import, a retried job, ...)
+                        # writes no "file" lines at all - only "skip" ones,
+                        # which carry the same path. Without this, dest_dir
+                        # never narrows past the raw output root for a
+                        # skip-only job, wrongly triggering the "shared
+                        # folder, can't delete individually" warning even
+                        # under Site/uploader structure.
+                        d = os.path.dirname(text)
+                        if d:
+                            written_dirs.add(d)
                     elif kind == "error":
                         counts["files_error"] += 1
                         errors.append(text)
