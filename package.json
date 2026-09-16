@@ -63,7 +63,8 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "runAfterFinish": true
+      "runAfterFinish": true,
+      "uninstallDisplayName": "${productName}"
     },
     "mac": {
       "target": "dmg",
