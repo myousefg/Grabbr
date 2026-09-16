@@ -23,6 +23,6 @@
     "service_worker": "background.js"
   },
   "options_page": "options.html",
-  "permissions": ["activeTab", "storage", "contextMenus"],
-  "host_permissions": ["http://127.0.0.1:8766/*"]
+  "permissions": ["activeTab", "storage", "contextMenus", "webRequest"],
+  "host_permissions": ["http://127.0.0.1:8766/*", "<all_urls>"]
 }

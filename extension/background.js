@@ -56,6 +56,47 @@ async function checkConnection() {
   }
 }
 
+// Some sites (usually ones gallery-dl/yt-dlp have no extractor for) point a
+// plain <video src="..."> straight at a CDN URL instead of exposing any
+// download link - the same URL you'd otherwise have to dig out of
+// chrome://.../media-internals by hand. Chrome's webRequest API sees that
+// request the moment the page itself makes it, since it's watching real
+// network traffic rather than reading page source the way gallery-dl/yt-dlp
+// do - the same reason media-internals can see it and a page-source scraper
+// can't. `type: 'media'` is what a real <video>/<audio> element's own
+// request shows up as; it deliberately does NOT catch the fetch/XHR calls a
+// MediaSource-based player (blob: URLs - YouTube, X/Twitter, most modern
+// sites) uses to pull in segments, since those sites already have proper
+// extractors and don't need this at all. First request per page load wins
+// (a preroll ad or a second unrelated <video> firing later shouldn't
+// override the one the user actually wants), cleared the moment that tab's
+// main page navigates again.
+chrome.webRequest.onBeforeRequest.addListener(
+  (details) => {
+    if (details.tabId < 0) return;
+    const key = `media_${details.tabId}`;
+    if (details.type === 'main_frame') {
+      chrome.storage.session.remove(key);
+      return;
+    }
+    chrome.storage.session.get(key).then((got) => {
+      if (got[key]) return; // first-seen-wins for this page load
+      chrome.storage.session.set({ [key]: { url: details.url, ts: Date.now() } });
+    });
+  },
+  { urls: ['<all_urls>'], types: ['media', 'main_frame'] },
+);
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.storage.session.remove(`media_${tabId}`);
+});
+
+async function getCapturedMedia(tabId) {
+  const key = `media_${tabId}`;
+  const got = await chrome.storage.session.get(key);
+  return got[key] || null;
+}
+
 // The popup runs in its own context (MV3 has no shared module scope between
 // it and this service worker), so it reaches sendUrls/checkConnection
 // through a message instead of a direct call - this also keeps the pairing
@@ -67,6 +108,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   }
   if (msg?.type === 'status') {
     checkConnection().then(sendResponse);
+    return true;
+  }
+  if (msg?.type === 'captured-media') {
+    getCapturedMedia(msg.tabId).then(sendResponse);
     return true;
   }
   return false;

@@ -28,6 +28,11 @@
   button#pair-connect:disabled { opacity: 0.5; cursor: default; }
   a#disconnect-link { display: inline-block; margin-top: 12px; font-size: 11px; color: #71717a; text-decoration: none; }
   a#disconnect-link:hover { color: #a1a1aa; text-decoration: underline; }
+  #media-detect { display: flex; align-items: flex-start; gap: 7px; margin: -2px 0 12px; }
+  #media-detect[hidden] { display: none; }
+  #media-detect input { margin-top: 2px; flex: none; }
+  #media-detect label { font-size: 11px; line-height: 1.4; color: #a1a1aa; }
+  #media-detect code { display: block; font-family: monospace; color: #71717a; word-break: break-all; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -41,6 +46,12 @@
 
   <div id="send-area" hidden>
     <p id="url">Loading…</p>
+    <div id="media-detect" hidden>
+      <input type="checkbox" id="media-use" checked />
+      <label for="media-use">Use detected video link instead
+        <code id="media-url"></code>
+      </label>
+    </div>
     <div class="row" id="yt-row" hidden>
       <select id="quality" aria-label="Video quality">
         <option value="best">Best quality</option>

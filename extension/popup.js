@@ -30,6 +30,9 @@ const pairSection = document.getElementById('pair');
 const pairCodeEl = document.getElementById('pair-code');
 const pairConnectBtn = document.getElementById('pair-connect');
 const disconnectLink = document.getElementById('disconnect-link');
+const mediaDetect = document.getElementById('media-detect');
+const mediaUseEl = document.getElementById('media-use');
+const mediaUrlEl = document.getElementById('media-url');
 
 function setStatus(text, kind) {
   statusEl.textContent = text;
@@ -60,6 +63,7 @@ async function refreshConnection() {
 }
 
 let currentUrl = '';
+let capturedMediaUrl = '';
 
 // Quality is a video-resolution filter; it does nothing once yt-dlp is
 // extracting audio only, so there's no point showing it for MP3.
@@ -76,14 +80,30 @@ async function init() {
   sendBtn.disabled = !sendable;
   ytRow.hidden = !isYoutube(currentUrl);
   updateQualityVisibility();
+
+  if (tab?.id != null) {
+    const captured = await chrome.runtime.sendMessage({ type: 'captured-media', tabId: tab.id });
+    if (captured?.url) {
+      capturedMediaUrl = captured.url;
+      mediaUrlEl.textContent = captured.url;
+      mediaDetect.hidden = false;
+    }
+  }
+
   refreshConnection();
 }
 
 sendBtn.addEventListener('click', async () => {
   sendBtn.disabled = true;
   setStatus('Sending…');
+  const useDetected = !mediaDetect.hidden && mediaUseEl.checked && capturedMediaUrl;
   const options = {};
-  if (!ytRow.hidden) {
+  if (useDetected) {
+    // The CDN this points at almost always hotlink-checks the Referer, the
+    // same way a real browser tab would send it - the current page is that
+    // referer, since it's the one that actually requested this URL.
+    options.referer = currentUrl;
+  } else if (!ytRow.hidden) {
     if (!qualityEl.hidden && qualityEl.value !== 'best') options.quality = qualityEl.value;
     if (formatEl.value !== 'mp4') options.format = formatEl.value;
   }
@@ -91,7 +111,7 @@ sendBtn.addEventListener('click', async () => {
   try {
     result = await chrome.runtime.sendMessage({
       type: 'send',
-      urls: [currentUrl],
+      urls: [useDetected ? capturedMediaUrl : currentUrl],
       options: Object.keys(options).length ? options : undefined,
     });
   } catch {

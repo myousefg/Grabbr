@@ -769,6 +769,14 @@ def build_ytdlp_argv(url: str, settings: dict, options: Optional[dict], print_to
     if rate_limit:
         argv += ["-r", rate_limit]
 
+    # Set when the browser extension resolved this from a raw media URL it
+    # saw the page itself request (via webRequest) rather than a URL gallery-dl
+    # or yt-dlp's own extractors recognize - most such CDNs hotlink-check the
+    # Referer and 403 without it, exactly like a real browser tab gets.
+    referer = str(options.get("referer") or "").strip()
+    if referer:
+        argv += ["--referer", referer]
+
     # aria2c splits a single video into parallel connections instead of one
     # sequential HTTP stream - a real speedup on the large single files a
     # YouTube pull actually is. Same "if it's there, use it" rule as ffmpeg:
@@ -1007,7 +1015,11 @@ class JobManager:
             pass
         log_path = str(JOB_LOG_DIR / f"{job_id}.log")
 
-        if _is_youtube_url(url):
+        # A referer option means the extension already resolved this to a raw
+        # media URL gallery-dl has no extractor for - yt-dlp's generic
+        # downloader (which already handles a direct file URL, not just
+        # recognized sites) is what actually fetches it.
+        if _is_youtube_url(url) or job_opts.get("referer"):
             return await self._run_ytdlp(job_id, job_opts, dest, log_path)
 
         base_cfg = write_gdl_config()
