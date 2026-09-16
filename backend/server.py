@@ -124,7 +124,7 @@ DEFAULT_OUTPUT_DIR = (
     os.environ.get("GRABBR_DEFAULT_OUTPUT")
     or str(Path.home() / "Downloads" / "Grabbr")
 )
-APP_VERSION = "1.3.4"                                # single source at runtime
+APP_VERSION = "1.4.0"                                # single source at runtime
 
 
 def _abs_output(p: Optional[str]) -> str:

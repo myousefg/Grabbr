@@ -3,13 +3,32 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
-## [Unreleased]
+## [1.4.0] - 2026-09-16
 
 ### Added
 - Browser extension: a fallback for unsupported websites that point their player straight at a
   file Grabbr can't otherwise reach. When the extension detects one, the popup offers a "Use
   detected video link instead" option that sends the real file together with the page it came
-  from, which is often all a site needs to allow the download instead of blocking it.
+  from, which is often all a site needs to allow the download instead of blocking it. This needed
+  a real increase in what the extension can see (it now watches network requests to spot this,
+  instead of only the page you click on).
+- A new Advanced page, split out of Settings: Browser extension, Engine, and Presets moved there,
+  so Settings itself only holds what most people touch day to day (Files, Appearance, Tools,
+  About, Legal).
+- Presets now show a plain explanation of what they actually are, a link to gallery-dl's config
+  reference, and two working "start from an example" buttons (Images only, Custom filename)
+  instead of a blank JSON box with no hint of what belongs there.
+
+### Fixed
+- "Delete files" refused on every single YouTube download, unconditionally. yt-dlp has no
+  folder-structure concept of its own, so its files always sit in the main download folder,
+  which the old check always read as "shared with other downloads, too risky to touch." It now
+  falls back to deleting the exact file a job is known to have written instead of refusing
+  outright.
+- A history entry could wrongly claim its files "can't be deleted individually because folder
+  structure is set to One flat folder" even when it wasn't - a job that found everything already
+  downloaded (a bookmarks re-import, a retried job) never narrowed down from the full download
+  root in the first place, regardless of the actual folder-structure setting.
 
 ## [1.3.4] - 2026-09-16
 
