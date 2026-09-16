@@ -373,9 +373,7 @@ export default function Sites() {
 
   return (
     <div className="space-y-8 pb-12">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('sites.title')}</h1>
-      </header>
+      <header />
 
       <CookieDefaults browsers={browsers} ck={ck} onReload={loadCookies} />
 

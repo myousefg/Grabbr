@@ -257,9 +257,7 @@ export default function History() {
 
   return (
     <div className="space-y-5 pb-12">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('history.title')}</h1>
-      </header>
+      <header />
 
       <div className="flex items-center gap-2 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">

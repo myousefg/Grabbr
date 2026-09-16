@@ -14,6 +14,7 @@ import Dashboard from '@/pages/Dashboard';
 import History from '@/pages/History';
 import Sites from '@/pages/Sites';
 import Settings from '@/pages/Settings';
+import Advanced from '@/pages/Advanced';
 import './App.css';
 
 function RoutedShell() {
@@ -50,6 +51,7 @@ function RoutedShell() {
             <Route path="/history" element={<History />} />
             <Route path="/sites"   element={<Sites />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/advanced" element={<Advanced />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>

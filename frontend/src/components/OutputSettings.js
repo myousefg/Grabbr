@@ -14,9 +14,12 @@ import { isElectron } from '@/lib/electron';
 
 const FOLDER_STRUCTURES = ['site_user', 'site', 'flat', 'custom'];
 
-// gallery-dl format fields offered by the "Insert field" menus.
-const NAME_TOKENS = ['category', 'id', 'num', 'filename', 'extension', 'title', 'date', 'user'];
-const NAME_TOKEN_TEXT = {
+// gallery-dl format fields offered by the "Insert field" menus. Exported for
+// reuse anywhere else a gallery-dl template string gets typed by hand (the
+// Presets editor, since a preset's overrides can set the same
+// filename/directory keys).
+export const NAME_TOKENS = ['category', 'id', 'num', 'filename', 'extension', 'title', 'date', 'user'];
+export const NAME_TOKEN_TEXT = {
   category: '{category}', id: '{id}', num: '{num}', filename: '{filename}',
   extension: '{extension}', title: '{title}', date: '{date:%Y%m%d}', user: '{user[name]}',
 };
@@ -25,7 +28,7 @@ const PATH_TOKEN_TEXT = {
   category: '{category}', user: '{user[name]}', subcategory: '{subcategory}', date: '{date:%Y-%m}',
 };
 
-function TokenMenu({ tokens, text, onPick }) {
+export function TokenMenu({ tokens, text, onPick }) {
   const { t } = useI18n();
   return (
     <DropdownMenu>

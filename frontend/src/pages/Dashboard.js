@@ -149,9 +149,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 pb-12">
-      <header>
-        <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('dashboard.title')}</h1>
-      </header>
+      <header />
 
       {/* URL input */}
       <div className="space-y-3">

@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Clock, Settings, Download, KeyRound } from 'lucide-react';
+import { LayoutDashboard, Clock, Settings, Download, KeyRound, SlidersHorizontal } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
@@ -59,12 +59,16 @@ export default function Sidebar() {
 
       <Separator />
 
-      <div className="p-3 space-y-2">
+      <div className="p-3 space-y-0.5">
         <NavLink to="/settings" className={linkClass} data-testid="nav-settings">
           <Settings className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
           {t('nav.settings')}
         </NavLink>
-        <div className="flex items-center gap-2 px-3 text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
+        <NavLink to="/advanced" className={linkClass} data-testid="nav-advanced">
+          <SlidersHorizontal className="w-4 h-4" strokeWidth={1.8} aria-hidden="true" />
+          {t('nav.advanced')}
+        </NavLink>
+        <div className="flex items-center gap-2 px-3 pt-1.5 text-[10px] tracking-[0.15em] uppercase text-muted-foreground">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${connected ? 'bg-emerald-500' : 'bg-muted-foreground/40'}`} aria-hidden="true" />
           {connected ? t('nav.connected') : t('nav.offline')}
         </div>
