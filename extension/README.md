@@ -12,8 +12,8 @@ never leaves localhost.
 3. Click **Load unpacked** and select this `extension/` folder.
 4. In Grabbr, go to **Settings → Browser extension → Enable** and copy the
    pairing code.
-5. Right-click the Grabbr extension icon → **Options**, paste the code, and
-   click **Connect**.
+5. Click the Grabbr toolbar icon, paste the code into the popup, and click
+   **Connect**.
 
 ## Use
 
@@ -23,7 +23,12 @@ never leaves localhost.
 - Right-click a link (or the page) → **Send to Grabbr** sends it immediately,
   no popup - a green check flashes on success; a red `!` means Grabbr isn't
   running; an amber `?` means the pairing code was revoked or rotated -
-  reconnect from the options page.
+  reconnect from the popup.
+- On an unsupported website whose player points straight at a file Grabbr
+  can't otherwise reach, the popup shows a **Use detected video link
+  instead** checkbox when it spots one. Checked by default - sends the real
+  file together with the page it came from, which most such sites need to
+  allow the download at all.
 
 ## Security notes
 
@@ -33,3 +38,8 @@ never leaves localhost.
   site credentials.
 - Regenerating or disabling the extension from Grabbr's Settings immediately
   invalidates the old code.
+- The unsupported-website fallback needs to watch network requests on any
+  page (`webRequest` + `<all_urls>`) to spot a direct video link the moment
+  the page itself requests it. It only ever looks at plain `<video>`/`<audio>`
+  element requests, ignores everything else, and nothing leaves the browser
+  until you actually click Send.

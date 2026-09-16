@@ -3,6 +3,14 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Added
+- Browser extension: a fallback for unsupported websites that point their player straight at a
+  file Grabbr can't otherwise reach. When the extension detects one, the popup offers a "Use
+  detected video link instead" option that sends the real file together with the page it came
+  from, which is often all a site needs to allow the download instead of blocking it.
+
 ## [1.3.4] - 2026-09-16
 
 ### Fixed

@@ -39,7 +39,8 @@ sites. No command line, no config files, no browser extensions to babysit.
 - **Automatic GIF conversion.** A Twitter/X "GIF" is secretly a video file. Grabbr notices and
   turns it into a real, shareable `.gif`.
 - **Skip what you already have.** Re-run the same link later and only new files download.
-- **A browser extension** to send the current tab straight to Grabbr without switching windows.
+- **A browser extension** to send the current tab straight to Grabbr without switching windows,
+  including a fallback for unsupported websites with no visible download link at all.
 - **45 languages**, with automatic detection of your system language and full right-to-left
   support.
 - **Light, dark, or system theme**, keyboard and screen-reader friendly throughout.
