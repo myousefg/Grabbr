@@ -61,6 +61,13 @@ async function refreshConnection() {
 
 let currentUrl = '';
 
+// Quality is a video-resolution filter; it does nothing once yt-dlp is
+// extracting audio only, so there's no point showing it for MP3.
+function updateQualityVisibility() {
+  qualityEl.hidden = formatEl.value === 'mp3';
+}
+formatEl.addEventListener('change', updateQualityVisibility);
+
 async function init() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentUrl = tab?.url || '';
@@ -68,6 +75,7 @@ async function init() {
   urlEl.textContent = sendable ? currentUrl : "This page can't be sent to Grabbr.";
   sendBtn.disabled = !sendable;
   ytRow.hidden = !isYoutube(currentUrl);
+  updateQualityVisibility();
   refreshConnection();
 }
 
@@ -76,7 +84,7 @@ sendBtn.addEventListener('click', async () => {
   setStatus('Sending…');
   const options = {};
   if (!ytRow.hidden) {
-    if (qualityEl.value !== 'best') options.quality = qualityEl.value;
+    if (!qualityEl.hidden && qualityEl.value !== 'best') options.quality = qualityEl.value;
     if (formatEl.value !== 'mp4') options.format = formatEl.value;
   }
   let result;

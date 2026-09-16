@@ -81,7 +81,9 @@ export default function Dashboard() {
     const o = {};
     if (s?.default_range?.trim()) o.range = s.default_range.trim();
     if (allYoutube) {
-      if (quality !== 'best') o.quality = quality;
+      // quality is a video-resolution filter; it does nothing once yt-dlp is
+      // extracting audio only, so it's dropped along with hiding the select.
+      if (format !== 'mp3' && quality !== 'best') o.quality = quality;
       if (format && format !== 'mp4') o.format = format;
     }
     // allYoutube guard here too, not just on hiding the select: the picked
@@ -200,14 +202,16 @@ export default function Dashboard() {
           </Button>
           {allYoutube && (
             <>
-              <Select value={quality} onValueChange={setQuality}>
-                <SelectTrigger className="w-28" data-testid="yt-quality"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {['best', '1080', '720', '480', '360'].map(q => (
-                    <SelectItem key={q} value={q}>{t(`dashboard.quality.${q}`)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {format !== 'mp3' && (
+                <Select value={quality} onValueChange={setQuality}>
+                  <SelectTrigger className="w-28" data-testid="yt-quality"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {['best', '1080', '720', '480', '360'].map(q => (
+                      <SelectItem key={q} value={q}>{t(`dashboard.quality.${q}`)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Select value={format} onValueChange={setFormat}>
                 <SelectTrigger className="w-24" data-testid="yt-format"><SelectValue /></SelectTrigger>
                 <SelectContent>

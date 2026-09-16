@@ -11,7 +11,7 @@ import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { jobsApi } from '@/lib/api';
 import { isElectron } from '@/lib/electron';
-import { useCooldownTick, HINT_KEY } from '@/lib/jobHints';
+import { useCooldownTick, useTrickleProgress, HINT_KEY } from '@/lib/jobHints';
 import { snappy } from '@/lib/motion';
 
 const STATUS_STYLE = {
@@ -41,6 +41,7 @@ export default function JobCard({ job }) {
   const live = logs[job.id] || [];
   const active = job.status === 'running' || job.status === 'queued';
   const cooldown = useCooldownTick(job);
+  const trickle = useTrickleProgress(job);
 
   // Tells JobsProvider this card is expanded, so a just-finished job doesn't
   // vanish out of Queue & Active mid-read.
@@ -94,7 +95,9 @@ export default function JobCard({ job }) {
           ? <Progress value={Math.min(100, ((job.files_ok || 0) / job.total) * 100)} className="h-1" />
           : job.status === 'running' && job.pct != null
             ? <Progress value={job.pct} className="h-1" />
-            : <Progress indeterminate className="h-1" />
+            : job.status === 'running' && trickle != null
+              ? <Progress value={trickle} className="h-1" />
+              : <Progress indeterminate className="h-1" />
       )}
 
       {job.status === 'running' && job.current_file && (
