@@ -3,6 +3,23 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.2] - 2026-09-16
+
+### Fixed
+- In-app updates always failed right after downloading, with "is not signed by the application
+  owner." Grabbr has never been code-signed, so a check meant to verify the downloaded
+  installer's signature had nothing valid to check against and failed every single time. This
+  has likely been broken since the very first release; it went unnoticed because it only
+  triggers on an actual in-app download, not a check. Note: this version still needs to be
+  installed manually from this release page once, since a version without this fix can never
+  successfully auto-download the fix for itself. After installing 1.3.2, in-app updates work
+  normally again.
+- A download without a known file total (most downloads, since Preview isn't required first)
+  sat on a sweeping "something is happening" bar for its whole run and jumped straight to done;
+  it now climbs smoothly and continuously while the job is actually running
+- The quality selector (1080p/720p/etc) did nothing when MP3 was selected; it's now hidden in
+  that case instead of implying a choice with no effect
+
 ## [1.3.1] - 2026-09-16
 
 ### Added
