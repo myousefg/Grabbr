@@ -73,6 +73,18 @@ Object.defineProperty(autoUpdater.app, 'baseCachePath', {
   configurable: true,
 });
 
+// Grabbr isn't code-signed (no Authenticode certificate), so after
+// downloading an update electron-updater's default NSIS verify step checks
+// the new installer's signature against app-update.yml's publisherName and
+// always fails with "is not signed by the application owner" - there's
+// never a valid signature to check in the first place. This only bit once
+// someone actually used the in-app Download button instead of grabbing the
+// installer from GitHub by hand, which is why it went unnoticed through
+// several releases. There's no signature to spoof if there's none at all,
+// and the download itself already comes over HTTPS from the GitHub release
+// electron-updater resolved, so the check is simply skipped.
+autoUpdater.verifyUpdateCodeSignature = () => Promise.resolve(null);
+
 // electron-updater has no logger wired up by default, so a failed check has
 // never had anywhere to leave a trace beyond the one-line error message
 // already shown in Settings - no way to see the actual HTTP request/response
