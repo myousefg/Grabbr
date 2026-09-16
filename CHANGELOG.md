@@ -3,6 +3,24 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.1] - 2026-09-16
+
+### Added
+- Settings > Browser extension now has a Download link, since the extension isn't bundled with
+  the installer or published to a store yet
+- Browser extension: connecting now happens right in the popup (paste the code, hit Connect)
+  instead of a separate Options page
+
+### Fixed
+- A YouTube download's progress bar sat still for the whole download and only jumped to 100%
+  at the very end; it now tracks the real download progress throughout
+- The browser extension's quality/format picker could show up on non-YouTube pages
+- Settings > Tools showed a bare date for gallery-dl's available update with no version number
+  next to it, unlike the installed version shown right beside it
+
+### Changed
+- Trimmed a few redundant lines from Settings (Legal, Tools) and the extension popup
+
 ## [1.3.0] - 2026-09-15
 
 ### Added
