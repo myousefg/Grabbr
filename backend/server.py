@@ -885,40 +885,44 @@ class JobManager:
         await self.queue.put(job_id)
 
     async def _stop_proc(self, proc):
-        """A graceful interrupt first (SIGINT / CTRL_BREAK) so gallery-dl/
-        yt-dlp get a chance to close whatever file they're mid-write on
-        cleanly, then the same force-kill either way - a bare graceful
-        signal alone was tested and found unreliable at actually stopping
-        either tool (confirmed live: gallery-dl kept downloading for 7+
-        seconds past one with no sign of stopping). The force-kill doesn't
-        cost Resume anything real: gallery-dl's download-archive records
-        each file as it finishes, so only the one file that was mid-write
-        at kill time is lost, not anything already completed."""
+        """Force-kill the whole tree via taskkill /F /T. gallery-dl's
+        download-archive records each file as it finishes, so only the one
+        file mid-write at kill time is lost, not anything already completed.
+
+        This used to try a graceful CTRL_BREAK_EVENT first, on the theory
+        that it'd let gallery-dl/yt-dlp close a file cleanly. It never
+        actually worked (confirmed live: gallery-dl kept downloading for 7+
+        seconds past one), and confirmed live a second time that it can
+        actively make things worse for a yt-dlp job using aria2c: yt-dlp
+        deliberately launches aria2c in its own detached process group so a
+        Ctrl+Break aimed at yt-dlp itself can't kill aria2c mid-transfer and
+        corrupt a partial file - which means our own CTRL_BREAK_EVENT could
+        kill yt-dlp's own top-level process while leaving its aria2c child
+        completely unaffected and still downloading. taskkill /T's tree-walk
+        then has no live root left to walk from, so it can't find that
+        child at all, and the job runs to completion untouched - which is
+        exactly the "pause/cancel didn't do anything" bug this was diagnosed
+        from, log-confirmed via a SystemError out of send_signal followed by
+        taskkill immediately reporting the root PID already gone. Skipping
+        straight to taskkill /F /T /PID means the root is still guaranteed
+        alive when the tree-walk runs, so it can actually find and kill
+        every descendant, aria2c included."""
         pid = proc.pid
+        log.info("_stop_proc: pid=%s returncode=%s", pid, proc.returncode)
         if os.name == "nt":
-            import signal
             try:
-                proc.send_signal(signal.CTRL_BREAK_EVENT)
-                await asyncio.sleep(0.5)
-            except Exception:
-                pass
-            # taskkill /T needs the target PID to still be alive to walk
-            # its live tree, so it must run BEFORE proc.kill() - killing
-            # the tracked PID first let an already-spawned grandchild
-            # (e.g. yt-dlp re-executing itself as its own child) survive
-            # as an orphan, since taskkill can no longer discover a live
-            # tree through an already-dead parent (confirmed live: a
-            # cancelled yt-dlp job left its child running for this exact
-            # reason). /F on the root already force-kills the whole tree,
-            # so this alone reaps everything; proc.kill() is just a
-            # fallback in case taskkill itself failed.
-            try:
-                await asyncio.to_thread(
+                tk = await asyncio.to_thread(
                     subprocess.run, ["taskkill", "/F", "/T", "/PID", str(pid)],
                     capture_output=True, timeout=5, creationflags=CREATE_NO_WINDOW,
                 )
-            except Exception:
-                pass
+                log.info(
+                    "_stop_proc: taskkill pid=%s rc=%s stdout=%r stderr=%r",
+                    pid, tk.returncode,
+                    (tk.stdout or b"").decode("utf-8", "replace").strip(),
+                    (tk.stderr or b"").decode("utf-8", "replace").strip(),
+                )
+            except Exception as e:
+                log.warning("_stop_proc: taskkill raised for pid=%s: %r", pid, e)
             try:
                 proc.kill()
             except Exception:
