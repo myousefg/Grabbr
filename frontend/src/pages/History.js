@@ -259,7 +259,6 @@ export default function History() {
     <div className="space-y-5 pb-12">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('history.title')}</h1>
-        <p className="text-sm text-muted-foreground mt-2">{t('history.subtitle')}</p>
       </header>
 
       <div className="flex items-center gap-2 flex-wrap">

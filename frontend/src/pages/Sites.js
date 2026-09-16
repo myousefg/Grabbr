@@ -375,13 +375,6 @@ export default function Sites() {
     <div className="space-y-8 pb-12">
       <header>
         <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('sites.title')}</h1>
-        <p className="text-xs text-muted-foreground mt-2">
-          {t('sites.supportedNote')}{' '}
-          <button onClick={() => openExternal('https://gdl-org.github.io/docs/supportedsites.html')}
-            className="underline hover:text-foreground">
-            {t('sites.supportedLink')}
-          </button>
-        </p>
       </header>
 
       <CookieDefaults browsers={browsers} ck={ck} onReload={loadCookies} />
@@ -402,6 +395,11 @@ export default function Sites() {
           </div>
         </section>
       ))}
+
+      <button onClick={() => openExternal('https://gdl-org.github.io/docs/supportedsites.html')}
+        className="text-xs text-muted-foreground underline hover:text-foreground">
+        {t('sites.supportedLink')}
+      </button>
     </div>
   );
 }

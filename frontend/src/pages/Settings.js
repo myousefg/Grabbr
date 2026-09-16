@@ -158,7 +158,6 @@ export default function Settings() {
       <header className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight leading-none">{t('settings.title')}</h1>
-          <p className="text-sm text-muted-foreground mt-2">{t('settings.subtitle')}</p>
         </div>
         <div className="text-xs mt-2 h-4">{saveTag}</div>
       </header>

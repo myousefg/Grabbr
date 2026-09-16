@@ -12,7 +12,6 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "subtitle": "Paste a gallery or profile URL. Grabbr does the rest.",
     "inputLabel": "Input",
     "urlPlaceholder": "https://...",
     "add": "Download",
@@ -95,7 +94,6 @@
   },
   "history": {
     "title": "History",
-    "subtitle": "Every download, timestamped.",
     "search": "Search URLs…",
     "allStatus": "All status",
     "clear": "Clear finished",
@@ -123,7 +121,6 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Engine, appearance, tools, and files. Changes save automatically.",
     "output": "OUTPUT",
     "outputDir": "Download folder",
     "filenameFormat": "Filename format",
@@ -287,7 +284,6 @@
   },
   "sites": {
     "title": "Sites",
-    "supportedNote": "Auto mode works for ~350 sites, most needing no login. This page only lists the ones that do.",
     "supportedLink": "Full list",
     "uploadCookies": "Upload cookies.txt",
     "replaceCookies": "Replace cookies.txt",
