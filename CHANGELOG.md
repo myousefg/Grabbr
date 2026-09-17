@@ -21,11 +21,11 @@ A ground-up UI pass plus two new features - the biggest release since 1.0, hence
 - Watch rows now expand to show the files from their last successful check, and always run with
   incremental downloading on regardless of the global "Skip already-downloaded" setting - a watch
   that isn't strictly incremental would just re-download everything on every tick.
-- Onboarding tour now covers Watch.
+- Onboarding tour now covers Watch and Convert.
 
 ### Changed
 - Sidebar's active-page highlight is now a tinted background with a left accent bar instead of a
-  flat solid fill; Watch moved up under Dashboard, Convert added between them.
+  flat solid fill. Sidebar order is now Dashboard, History, Watch, Convert, Sites.
 - Job cards get a status-colored left border for scanning a busy queue at a glance, not just the
   status pill's text.
 

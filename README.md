@@ -39,6 +39,11 @@ sites. No command line, no config files, no browser extensions to babysit.
 - **Automatic GIF conversion.** A Twitter/X "GIF" is secretly a video file. Grabbr notices and
   turns it into a real, shareable `.gif`.
 - **Skip what you already have.** Re-run the same link later and only new files download.
+- **Watch a page.** Turn any URL into a recurring check (15 minutes up to 24 hours) instead of a
+  one-off download - only whatever's new since last time actually downloads.
+- **Convert or compress.** Drop any photo or video, not just something Grabbr downloaded - HEIC and
+  MOV from an iPhone convert straight to JPG and MP4, with a quality control for shrinking file size.
+  Settings can also do this automatically for every future download.
 - **A browser extension** to send the current tab straight to Grabbr without switching windows,
   including a fallback for unsupported websites with no visible download link at all.
 - **45 languages**, with automatic detection of your system language and full right-to-left

@@ -10,9 +10,9 @@ export default function Sidebar() {
 
   const navItems = [
     { to: '/',        icon: LayoutDashboard, label: t('nav.dashboard') },
-    { to: '/convert', icon: ArrowLeftRight,  label: t('nav.convert') },
-    { to: '/watch',   icon: Bell,            label: t('nav.watch') },
     { to: '/history', icon: Clock,           label: t('nav.history') },
+    { to: '/watch',   icon: Bell,            label: t('nav.watch') },
+    { to: '/convert', icon: ArrowLeftRight,  label: t('nav.convert') },
     { to: '/sites',   icon: KeyRound,        label: t('nav.sites') },
   ];
 

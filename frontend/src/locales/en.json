@@ -407,6 +407,10 @@
       "title": "Watch",
       "body": "Turn any single URL into a recurring check instead of a one-off download - Grabbr re-checks it on an interval you pick and only pulls whatever's new since last time."
     },
+    "convert": {
+      "title": "Convert",
+      "body": "Drop any photo or video here, not just something Grabbr downloaded - HEIC and MOV from an iPhone convert straight to JPG and MP4, with a quality control if you also want to shrink the file."
+    },
     "sites": {
       "title": "Sites: private accounts",
       "body": "Instagram, Twitter, Pixiv and similar need a login. Pick a browser for Grabbr to read cookies from, or upload a cookies.txt for that site. Reddit, DeviantArt and others use one-click OAuth."
