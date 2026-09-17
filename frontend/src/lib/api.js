@@ -64,6 +64,14 @@ export const presetsApi = {
   remove: (id)                  => api.delete(`/presets/${id}`).then(r => r.data),
 };
 
+export const watchesApi = {
+  list:   ()                          => api.get('/watches').then(r => r.data),
+  create: (url, interval_min, options) => api.post('/watches', { url, interval_min, options }).then(r => r.data),
+  update: (id, patch)                 => api.patch(`/watches/${id}`, patch).then(r => r.data),
+  remove: (id)                        => api.delete(`/watches/${id}`).then(r => r.data),
+  checkNow: (id)                      => api.post(`/watches/${id}/check`).then(r => r.data),
+};
+
 export const toolsApi = {
   list:    ()     => api.get('/tools').then(r => r.data),
   install: (name) => api.post(`/tools/${name}/install`).then(r => r.data),

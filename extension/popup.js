@@ -96,7 +96,7 @@ async function init() {
 sendBtn.addEventListener('click', async () => {
   sendBtn.disabled = true;
   setStatus('Sending…');
-  const useDetected = !mediaDetect.hidden && mediaUseEl.checked && capturedMediaUrl;
+  const useDetected = !mediaDetect.hidden && mediaUseEl.value === 'direct' && capturedMediaUrl;
   const options = {};
   if (useDetected) {
     // The CDN this points at almost always hotlink-checks the Referer, the

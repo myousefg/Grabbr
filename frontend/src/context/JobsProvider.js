@@ -154,6 +154,22 @@ export function JobsProvider({ children }) {
           msg.jobs.forEach(upsert);
         } else if (msg.type === 'job.update') {
           upsert(msg.job);
+        } else if (msg.type === 'job.removed') {
+          // A watch tick that found nothing new never reaches "done" here -
+          // the backend deletes it outright instead of leaving a "0 files"
+          // entry, so this just reconciles local state, no notification.
+          setJobs(prev => {
+            if (!(msg.id in prev)) return prev;
+            const n = { ...prev };
+            delete n[msg.id];
+            return n;
+          });
+          setLogs(prev => {
+            if (!(msg.id in prev)) return prev;
+            const n = { ...prev };
+            delete n[msg.id];
+            return n;
+          });
         } else if (msg.type === 'job.progress') {
           setJobs(prev => prev[msg.id] ? {
             ...prev,

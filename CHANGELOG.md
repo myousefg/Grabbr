@@ -3,6 +3,26 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0] - 2026-09-17
+
+### Added
+- Watch a page: turn any single URL on the Dashboard into a recurring check (15 minutes up to
+  24 hours). Grabbr re-runs it on that schedule and only downloads anything new, the same
+  skip-already-downloaded logic a normal re-run already relies on, so a check that finds nothing
+  never clutters History. A new "Watching" section lists what's being watched, when it last
+  checked, and what it found, with pause/check-now/remove controls.
+- A refreshed color direction for the desktop app and the browser extension popup: one accent
+  color (previously plain grayscale) plus slightly softer corners, chosen after specifically
+  avoiding the cyan/violet combination that reads as generic AI-tool branding.
+- Extension popup: subtle motion (panels fade in instead of snapping open, a pulsing "Connected"
+  indicator, button press feedback) instead of a static popup.
+
+### Changed
+- Extension: "Use detected video link instead" is now a dropdown that defaults to the page's own
+  link, instead of an auto-checked checkbox. It showed up even on sites like Twitter/YouTube that
+  don't need it (a stray direct-media network request can fire there too), so making it opt-in
+  avoids silently downloading the wrong thing on the sites that already just work.
+
 ## [1.4.0] - 2026-09-16
 
 ### Added

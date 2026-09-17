@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { AnimatePresence, motion } from 'motion/react';
-import { Download, Eye, Loader2, AlertTriangle, ClipboardPaste } from 'lucide-react';
+import { Download, Eye, Loader2, AlertTriangle, ClipboardPaste, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -10,11 +10,13 @@ import {
 import JobCard from '@/components/JobCard';
 import PreviewDialog from '@/components/PreviewDialog';
 import OutputSettings from '@/components/OutputSettings';
+import WatchSection from '@/components/WatchSection';
 import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
 import { isElectron } from '@/lib/electron';
 import { presetsApi } from '@/lib/api';
+import { useWatches } from '@/lib/watches';
 import { snappy, listItem } from '@/lib/motion';
 
 const MODES = ['auto', 'page', 'scan'];
@@ -70,6 +72,7 @@ export default function Dashboard() {
   const [presets, setPresets] = useState([]);
   const [preset, setPreset] = useState('none');
   const urlInputId = useId();
+  const { watches, add: addWatch, update: updateWatch, remove: removeWatch, checkNow: checkWatchNow } = useWatches();
 
   useEffect(() => { presetsApi.list().then(setPresets).catch(() => {}); }, []);
 
@@ -127,6 +130,20 @@ export default function Dashboard() {
     }
     const t2 = dt.getData('text/uri-list') || dt.getData('text/plain');
     if (t2) appendText(t2);
+  };
+
+  const [watching, setWatching] = useState(false);
+  const watchCurrent = async () => {
+    if (!isValidUrl(urls[0])) { toast.error(t('dashboard.invalidUrl')); return; }
+    setWatching(true);
+    try {
+      await addWatch(applyMode(urls[0], mode), 60, jobOptions());
+      toast.success(t('watch.added'));
+    } catch {
+      toast.error(t('watch.addFailed'));
+    } finally {
+      setWatching(false);
+    }
   };
 
   const submit = async (list, submitMode = mode, opts = jobOptions()) => {
@@ -196,6 +213,16 @@ export default function Dashboard() {
             data-testid="preview-btn"
           >
             <Eye className="w-4 h-4 me-2" /> {t('dashboard.preview')}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={watchCurrent}
+            disabled={busy || watching || urls.length !== 1 || isYoutubeUrl(urls[0])}
+            title={t('watch.addHint')}
+            data-testid="watch-btn"
+          >
+            {watching ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Bell className="w-4 h-4 me-2" />}
+            {t('watch.add')}
           </Button>
           {allYoutube && (
             <>
@@ -281,6 +308,8 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      <WatchSection watches={watches} onUpdate={updateWatch} onRemove={removeWatch} onCheckNow={checkWatchNow} />
 
       <OutputSettings />
 

@@ -29,7 +29,7 @@ import traceback as _traceback
 import urllib.request
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -124,7 +124,7 @@ DEFAULT_OUTPUT_DIR = (
     os.environ.get("GRABBR_DEFAULT_OUTPUT")
     or str(Path.home() / "Downloads" / "Grabbr")
 )
-APP_VERSION = "1.4.0"                                # single source at runtime
+APP_VERSION = "1.5.0"                                # single source at runtime
 
 
 def _abs_output(p: Optional[str]) -> str:
@@ -395,8 +395,22 @@ CREATE TABLE IF NOT EXISTS site_auth (
     updated_at      TEXT
 );
 
+CREATE TABLE IF NOT EXISTS watches (
+    id              TEXT PRIMARY KEY,
+    url             TEXT NOT NULL,
+    options_json    TEXT DEFAULT '{}',
+    interval_min    INTEGER DEFAULT 60,
+    enabled         INTEGER DEFAULT 1,
+    last_checked_at TEXT DEFAULT '',
+    last_found      INTEGER DEFAULT -1,
+    last_status     TEXT DEFAULT '',
+    last_job_id     TEXT DEFAULT '',
+    created_at      TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_jobs_status  ON jobs(status);
 CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
+CREATE INDEX IF NOT EXISTS idx_watches_enabled ON watches(enabled);
 """
         )
         c.commit()
@@ -413,6 +427,7 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at);
             ("settings", "presets", "TEXT DEFAULT '[]'"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
             ("jobs", "files_json", "TEXT DEFAULT '[]'"),
+            ("jobs", "watch_id", "TEXT DEFAULT ''"),
         ]:
             try:
                 c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
@@ -867,6 +882,17 @@ def _job_public(row: Optional[dict]) -> dict:
     return row
 
 
+def _watch_public(row: Optional[dict]) -> dict:
+    if not row:
+        return {}
+    row = dict(row)
+    try:
+        row["options"] = json.loads(row.pop("options_json", "{}") or "{}")
+    except Exception:
+        row["options"] = {}
+    return row
+
+
 class JobManager:
     def __init__(self):
         self.queue: "asyncio.Queue[str]" = asyncio.Queue()
@@ -982,6 +1008,32 @@ class JobManager:
             return
         self.pausing.add(job_id)
         await self._stop_proc(proc)
+
+    async def _finalize_job_broadcast(self, job_id: str):
+        """Shared tail for _run/_run_ytdlp. A watch-triggered run that found
+        nothing new gets deleted outright instead of leaving a "0 files"
+        entry cluttering History - the frontend never even sees it reach
+        "done", so there's no flash and no false "Downloaded 0 files"
+        notification. Everything else (manual jobs, and watch runs that did
+        find something or failed) broadcasts exactly as before."""
+        row = _job_row(job_id)
+        if not row:  # may be gone if the user hit Delete mid-run
+            return
+        wid = row.get("watch_id")
+        if wid:
+            if row["status"] == "done" and not row.get("files_ok"):
+                db_run("DELETE FROM jobs WHERE id=?", (job_id,))
+                db_run(
+                    "UPDATE watches SET last_checked_at=?, last_found=0, last_status='ok' WHERE id=?",
+                    (_now(), wid),
+                )
+                await ws_manager.broadcast({"type": "job.removed", "id": job_id})
+                return
+            db_run(
+                "UPDATE watches SET last_checked_at=?, last_found=?, last_status=? WHERE id=?",
+                (_now(), row.get("files_ok") or 0, "error" if row["status"] == "error" else "ok", wid),
+            )
+        await ws_manager.broadcast({"type": "job.update", "job": _job_public(row)})
 
     async def _dispatch_loop(self):
         while True:
@@ -1204,9 +1256,7 @@ class JobManager:
             (status, counts["files_ok"], counts["files_skipped"], counts["files_error"], json.dumps(written_files),
              "\n".join(errors[-20:]), rc, hint, dest_final, _now(), job_id),
         )
-        final_row = _job_row(job_id)
-        if final_row:  # may be gone if the user hit Delete mid-run
-            await ws_manager.broadcast({"type": "job.update", "job": _job_public(final_row)})
+        await self._finalize_job_broadcast(job_id)
         async with self.cond:
             self.cond.notify_all()
 
@@ -1340,14 +1390,67 @@ class JobManager:
             (status, counts["files_ok"], counts["files_skipped"], counts["files_error"], json.dumps(written_files),
              "\n".join(errors[-20:]), rc, dest, _now(), job_id),
         )
-        final_row = _job_row(job_id)
-        if final_row:
-            await ws_manager.broadcast({"type": "job.update", "job": _job_public(final_row)})
+        await self._finalize_job_broadcast(job_id)
         async with self.cond:
             self.cond.notify_all()
 
 
 manager = JobManager()
+
+
+# ── Watches ──────────────────────────────────────────────────────────────────
+# A "watch" is a saved URL Grabbr re-checks on an interval, reusing the exact
+# same job pipeline as a manual download: gallery-dl/yt-dlp's own
+# skip-already-downloaded archive (see settings.skip_existing) means a tick
+# that finds nothing new does real work but writes no files, so
+# _finalize_job_broadcast above quietly deletes that empty run instead of
+# leaving a "0 files" entry in History every interval.
+async def _trigger_watch(w: dict):
+    job_id = uuid.uuid4().hex
+    try:
+        opts = json.loads(w.get("options_json") or "{}")
+    except Exception:
+        opts = {}
+    db_run(
+        "INSERT INTO jobs (id, url, status, options_json, watch_id, created_at) VALUES (?, ?, 'queued', ?, ?, ?)",
+        (job_id, w["url"], json.dumps(opts), w["id"], _now()),
+    )
+    db_run("UPDATE watches SET last_job_id=? WHERE id=?", (job_id, w["id"]))
+    await ws_manager.broadcast({"type": "job.update", "job": _job_public(_job_row(job_id))})
+    await manager.enqueue(job_id)
+
+
+async def _tick_watches():
+    # A watch already mid-run (its last trigger hasn't finalized yet) is
+    # skipped rather than re-triggered - last_checked_at only updates on
+    # finish, so without this a slow check would get re-queued every tick
+    # for as long as it runs.
+    active_watch_ids = {
+        r["watch_id"] for r in
+        db_all("SELECT DISTINCT watch_id FROM jobs WHERE watch_id != '' AND status IN ('queued','running','paused')")
+    }
+    now = datetime.now(timezone.utc)
+    for w in db_all("SELECT * FROM watches WHERE enabled=1"):
+        if w["id"] in active_watch_ids:
+            continue
+        last = w.get("last_checked_at") or ""
+        if last:
+            try:
+                if now - datetime.fromisoformat(last) < timedelta(minutes=int(w.get("interval_min") or 60)):
+                    continue
+            except Exception:
+                pass
+        await _trigger_watch(w)
+
+
+async def _watch_loop():
+    await asyncio.sleep(10)  # let startup (and any queued jobs) settle first
+    while True:
+        try:
+            await _tick_watches()
+        except Exception:
+            log.exception("watch loop tick failed")
+        await asyncio.sleep(60)
 
 
 # ── Preview ──────────────────────────────────────────────────────────────────
@@ -1952,6 +2055,17 @@ class PresetPatch(BaseModel):
     overrides: Optional[str] = None
 
 
+class WatchIn(BaseModel):
+    url: str
+    interval_min: int = 60
+    options: Optional[dict] = None
+
+
+class WatchPatch(BaseModel):
+    enabled: Optional[bool] = None
+    interval_min: Optional[int] = None
+
+
 class CookieImportIn(BaseModel):
     path: Optional[str] = None   # a local cookies.txt to copy in
     text: Optional[str] = None   # or raw Netscape text
@@ -1963,6 +2077,7 @@ class CookieImportIn(BaseModel):
 async def lifespan(app: FastAPI):
     init_db()
     await manager.start()
+    asyncio.create_task(_watch_loop())
     log.info("Grabbr backend ready on :%d - gallery-dl: %s", PORT, gdl_bin())
     yield
 
@@ -2287,6 +2402,60 @@ def delete_preset(preset_id: str):
     if len(remaining) == len(presets):
         raise HTTPException(404, "Preset not found")
     save_presets(remaining)
+    return {"ok": True}
+
+
+@api.get("/watches")
+def list_watches():
+    return [_watch_public(r) for r in db_all("SELECT * FROM watches ORDER BY created_at DESC")]
+
+
+@api.post("/watches")
+def create_watch(body: WatchIn):
+    url = body.url.strip()
+    if not url:
+        raise HTTPException(400, "URL is required")
+    interval = max(5, int(body.interval_min or 60))
+    watch_id = uuid.uuid4().hex
+    db_run(
+        "INSERT INTO watches (id, url, options_json, interval_min, created_at) VALUES (?, ?, ?, ?, ?)",
+        (watch_id, url, json.dumps(body.options or {}), interval, _now()),
+    )
+    return _watch_public(db_one("SELECT * FROM watches WHERE id=?", (watch_id,)))
+
+
+@api.patch("/watches/{watch_id}")
+def update_watch(watch_id: str, body: WatchPatch):
+    row = db_one("SELECT * FROM watches WHERE id=?", (watch_id,))
+    if not row:
+        raise HTTPException(404, "Watch not found")
+    if body.enabled is not None:
+        db_run("UPDATE watches SET enabled=? WHERE id=?", (1 if body.enabled else 0, watch_id))
+    if body.interval_min is not None:
+        db_run("UPDATE watches SET interval_min=? WHERE id=?", (max(5, int(body.interval_min)), watch_id))
+    return _watch_public(db_one("SELECT * FROM watches WHERE id=?", (watch_id,)))
+
+
+@api.delete("/watches/{watch_id}")
+def delete_watch(watch_id: str):
+    row = db_one("SELECT * FROM watches WHERE id=?", (watch_id,))
+    if not row:
+        raise HTTPException(404, "Watch not found")
+    db_run("DELETE FROM watches WHERE id=?", (watch_id,))
+    return {"ok": True}
+
+
+@api.post("/watches/{watch_id}/check")
+async def check_watch_now(watch_id: str):
+    row = db_one("SELECT * FROM watches WHERE id=?", (watch_id,))
+    if not row:
+        raise HTTPException(404, "Watch not found")
+    active = db_one(
+        "SELECT id FROM jobs WHERE watch_id=? AND status IN ('queued','running','paused')", (watch_id,)
+    )
+    if active:
+        raise HTTPException(409, "This watch is already checking")
+    await _trigger_watch(row)
     return {"ok": True}
 
 
