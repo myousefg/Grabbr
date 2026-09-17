@@ -64,6 +64,13 @@ export const presetsApi = {
   remove: (id)                  => api.delete(`/presets/${id}`).then(r => r.data),
 };
 
+export const convertApi = {
+  list:   ()             => api.get('/convert').then(r => r.data),
+  create: (items)         => api.post('/convert', { items }).then(r => r.data),
+  remove: (id)            => api.delete(`/convert/${id}`).then(r => r.data),
+  clearFinished: ()       => api.delete('/convert').then(r => r.data),
+};
+
 export const watchesApi = {
   list:   ()                          => api.get('/watches').then(r => r.data),
   create: (url, interval_min, options) => api.post('/watches', { url, interval_min, options }).then(r => r.data),

@@ -411,8 +411,23 @@ ipcMain.handle('select-file', async (_, opts = {}) => {
   return res.canceled ? null : res.filePaths[0];
 });
 
+ipcMain.handle('select-files', async (_, opts = {}) => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    properties: ['openFile', 'multiSelections'],
+    title: opts.title || 'Select Files',
+    filters: opts.filters || [{ name: 'All Files', extensions: ['*'] }],
+    defaultPath: opts.defaultPath || app.getPath('home'),
+  });
+  return res.canceled ? [] : res.filePaths;
+});
+
 ipcMain.handle('open-path', async (_, p) => {
   if (p && fs.existsSync(p)) { await shell.openPath(p); return true; }
+  return false;
+});
+
+ipcMain.handle('show-in-folder', (_, p) => {
+  if (p && fs.existsSync(p)) { shell.showItemInFolder(p); return true; }
   return false;
 });
 

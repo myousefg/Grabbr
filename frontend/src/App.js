@@ -11,6 +11,7 @@ import ErrorBoundary from '@/components/ErrorBoundary';
 import Layout from '@/components/Layout';
 import Onboarding, { introDismissed } from '@/components/Onboarding';
 import Dashboard from '@/pages/Dashboard';
+import Convert from '@/pages/Convert';
 import History from '@/pages/History';
 import Watch from '@/pages/Watch';
 import Sites from '@/pages/Sites';
@@ -49,6 +50,7 @@ function RoutedShell() {
         <ErrorBoundary>
           <Routes>
             <Route path="/"        element={<Dashboard />} />
+            <Route path="/convert" element={<Convert />} />
             <Route path="/history" element={<History />} />
             <Route path="/watch"   element={<Watch />} />
             <Route path="/sites"   element={<Sites />} />

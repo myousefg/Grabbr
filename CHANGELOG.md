@@ -3,6 +3,37 @@
 All notable changes to Grabbr are recorded here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.0.0] - 2026-09-18
+
+A ground-up UI pass plus two new features - the biggest release since 1.0, hence the major version.
+
+### Added
+- **Convert page**: drop any photo or video (not just something Grabbr downloaded) and convert or
+  compress it - HEIC/WEBP/PNG/BMP/AVIF/TIFF to JPG/PNG/WEBP, and MOV/MKV/AVI/WMV and friends to
+  MP4/WEBM, with a High/Medium/Low quality control. Built specifically around the two most common
+  cases: iPhone photos (HEIC) and screen recordings (MOV) that plenty of apps still can't open.
+- **Default photo/video format** (Settings > Files): auto-normalizes every future download to a
+  format of your choice - handy when the same site hands you jpg, JPEG, JPG, and webp
+  interchangeably. Off by default; jpg/jpeg is a free rename, an actual format change re-encodes
+  through the same engine Convert uses.
+- **Media-type folder sorting**: a new `{type}` token in the "Insert field" menu on Dashboard's
+  custom folder template, resolving to Photos, Videos, GIFs, or Audio based on the actual file.
+- Watch rows now expand to show the files from their last successful check, and always run with
+  incremental downloading on regardless of the global "Skip already-downloaded" setting - a watch
+  that isn't strictly incremental would just re-download everything on every tick.
+- Onboarding tour now covers Watch.
+
+### Changed
+- Sidebar's active-page highlight is now a tinted background with a left accent bar instead of a
+  flat solid fill; Watch moved up under Dashboard, Convert added between them.
+- Job cards get a status-colored left border for scanning a busy queue at a glance, not just the
+  status pill's text.
+
+### Fixed
+- "Skip already-downloaded" turned off still silently skipped files that already existed on disk -
+  the setting only ever disabled Grabbr's own download-archive, not gallery-dl's separate,
+  always-on-by-default on-disk check. Turning it off now means what it says.
+
 ## [1.5.0] - 2026-09-17
 
 ### Added

@@ -74,7 +74,12 @@ export default function CookieDefaults({ browsers = [], ck, onReload }) {
             <p className="text-emerald-600 dark:text-emerald-400">
               {t('settings.cookiesFolderDetected', { count: ck.files.length })}
             </p>
-            <p className="font-mono text-[11px]">{ck.domains.join('  ·  ') || t('settings.cookiesFolderNoDomains')}</p>
+            <p className="font-mono text-[11px] break-all">
+              {ck.domains.length
+                ? ck.domains.slice(0, 12).join('  ·  ')
+                : t('settings.cookiesFolderNoDomains')}
+              {ck.domains.length > 12 && `  ·  ${t('settings.cookiesFolderMore', { count: ck.domains.length - 12 })}`}
+            </p>
           </>
         )}
       </div>

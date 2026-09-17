@@ -146,6 +146,27 @@ export default function Settings() {
               )}
             </Row>
           )}
+          <Row title={t('settings.defaultPhotoFormat')} desc={t('settings.defaultPhotoFormatDesc')}>
+            <Select value={s.default_photo_format || 'keep'} onValueChange={v => update({ default_photo_format: v })}>
+              <SelectTrigger className="w-40" data-testid="default-photo-format"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keep">{t('settings.keepOriginal')}</SelectItem>
+                <SelectItem value="jpg">JPG</SelectItem>
+                <SelectItem value="png">PNG</SelectItem>
+                <SelectItem value="webp">WEBP</SelectItem>
+              </SelectContent>
+            </Select>
+          </Row>
+          <Row title={t('settings.defaultVideoFormat')} desc={t('settings.defaultVideoFormatDesc')}>
+            <Select value={s.default_video_format || 'keep'} onValueChange={v => update({ default_video_format: v })}>
+              <SelectTrigger className="w-40" data-testid="default-video-format"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="keep">{t('settings.keepOriginal')}</SelectItem>
+                <SelectItem value="mp4">MP4</SelectItem>
+                <SelectItem value="webm">WEBM</SelectItem>
+              </SelectContent>
+            </Select>
+          </Row>
           <Row title={t('settings.clearCache')} desc={t('settings.clearCacheDesc')}>
             <Button variant="outline" size="sm" onClick={clearCache} disabled={cacheClearing}>
               {cacheClearing ? <Loader2 className="w-3.5 h-3.5 me-1.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 me-1.5" />}

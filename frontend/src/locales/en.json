@@ -1,6 +1,7 @@
 {
   "nav": {
     "dashboard": "DASHBOARD",
+    "convert": "CONVERT",
     "history": "HISTORY",
     "watch": "WATCH",
     "sites": "SITES",
@@ -121,6 +122,31 @@
     "deleteFailed": "Could not delete files",
     "sharedFolderNote": "This job's files couldn't be narrowed down from the main download folder, so deleting them here would affect other downloads too. Use Remove to clear this entry, or delete files from the folder yourself."
   },
+  "convert": {
+    "dropTitle": "Drop photos or videos to convert or compress",
+    "dropHint": "Change the format, shrink the file size, or both",
+    "browse": "Browse files",
+    "photosTo": "Photos →",
+    "videosTo": "Videos →",
+    "quality": {
+      "high": "Quality: High",
+      "medium": "Quality: Medium",
+      "low": "Quality: Low"
+    },
+    "convertAll": "Convert all ({{count}})",
+    "unsupported": "Skipped {{name}} - unsupported file type",
+    "reveal": "Show in folder",
+    "remove": "Remove",
+    "clearFinished": "Clear finished",
+    "addFailed": "Could not start conversion",
+    "status": {
+      "queued": "Queued",
+      "running": "Converting",
+      "done": "Done",
+      "error": "Error"
+    },
+    "empty": "Nothing converted yet."
+  },
   "watch": {
     "add": "Watch",
     "addHint": "Check this page again automatically and download anything new",
@@ -130,6 +156,7 @@
     "pause": "Pause checking",
     "resume": "Resume checking",
     "checkNow": "Check now",
+    "viewFiles": "View files from last check",
     "remove": "Stop watching",
     "removed": "Stopped watching",
     "actionFailed": "Something went wrong",
@@ -168,7 +195,8 @@
       "title": "Post title",
       "date": "Post date",
       "user": "Uploader name",
-      "subcategory": "Section within the site"
+      "subcategory": "Section within the site",
+      "type": "Media type: Photos, Videos, GIFs, or Audio"
     },
     "fs": {
       "site_user": "Site / uploader (default)",
@@ -202,6 +230,7 @@
     "cookiesFolderEmpty": "No cookies.txt files yet. Export one from your browser:",
     "cookiesFolderDetected": "{{count}} file(s) detected, covering:",
     "cookiesFolderNoDomains": "No domains were found in these files.",
+    "cookiesFolderMore": "+{{count}} more",
     "cookiesFolderInfo": "Any cookies.txt files here are merged and applied to the matching site by domain.",
     "cookiesBrowserPick": "Browser",
     "browserRunning": "{{name}} is running. Chromium browsers lock their cookie database while open; quit {{name}} for Grabbr to read it.",
@@ -282,6 +311,11 @@
     "dataFolder": "Data folder",
     "dataFolderDesc": "Database, config, logs, download archive, gallery-dl cache, and downloaded tools. Set the GRABBR_DATA env var to move it.",
     "downloadsFolder": "Downloads folder",
+    "keepOriginal": "Keep original",
+    "defaultPhotoFormat": "Default photo format",
+    "defaultPhotoFormatDesc": "Converts HEIC, WEBP, and other photo formats to your choice as they download - handy for iPhone exports.",
+    "defaultVideoFormat": "Default video format",
+    "defaultVideoFormatDesc": "Converts MOV and other video formats to your choice as they download.",
     "clearCache": "Clear cache",
     "clearCacheDesc": "Removes generated thumbnails and gallery-dl's internal cache. Nothing you downloaded is touched.",
     "cacheCleared": "Cache cleared",
@@ -363,11 +397,15 @@
     "done": "Done",
     "welcome": {
       "title": "Welcome to Grabbr",
-      "body": "Grabbr is a desktop front-end for gallery-dl. Paste a gallery, profile, or post URL and it pulls the full set of images and video. This quick tour covers the four screens."
+      "body": "Grabbr is a desktop front-end for gallery-dl. Paste a gallery, profile, or post URL and it pulls the full set of images and video. Quick tour of the basics."
     },
     "dashboard": {
       "title": "Dashboard",
       "body": "Paste one URL or many, one per line. Pick a mode (Auto fits ~350 sites), then Download. The download folder and file naming sit right below the queue."
+    },
+    "watch": {
+      "title": "Watch",
+      "body": "Turn any single URL into a recurring check instead of a one-off download - Grabbr re-checks it on an interval you pick and only pulls whatever's new since last time."
     },
     "sites": {
       "title": "Sites: private accounts",

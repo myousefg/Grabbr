@@ -124,7 +124,7 @@ DEFAULT_OUTPUT_DIR = (
     os.environ.get("GRABBR_DEFAULT_OUTPUT")
     or str(Path.home() / "Downloads" / "Grabbr")
 )
-APP_VERSION = "1.5.0"                                # single source at runtime
+APP_VERSION = "2.0.0"                                # single source at runtime
 
 
 def _abs_output(p: Optional[str]) -> str:
@@ -350,6 +350,8 @@ CREATE TABLE IF NOT EXISTS settings (
     retries           INTEGER DEFAULT 4,
     skip_existing     INTEGER DEFAULT 1,
     write_metadata    INTEGER DEFAULT 0,
+    default_photo_format TEXT DEFAULT 'keep',
+    default_video_format TEXT DEFAULT 'keep',
     notifications_enabled INTEGER DEFAULT 1,
     cookies_mode      TEXT DEFAULT 'browser',
     cookies_browser   TEXT DEFAULT 'firefox',
@@ -395,6 +397,22 @@ CREATE TABLE IF NOT EXISTS site_auth (
     updated_at      TEXT
 );
 
+CREATE TABLE IF NOT EXISTS conversions (
+    id           TEXT PRIMARY KEY,
+    src_path     TEXT NOT NULL,
+    src_name     TEXT DEFAULT '',
+    src_size     INTEGER DEFAULT 0,
+    kind         TEXT NOT NULL,
+    target       TEXT NOT NULL,
+    quality      TEXT DEFAULT 'high',
+    status       TEXT NOT NULL DEFAULT 'queued',
+    dest_path    TEXT DEFAULT '',
+    dest_size    INTEGER DEFAULT 0,
+    error_text   TEXT DEFAULT '',
+    created_at   TEXT,
+    finished_at  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS watches (
     id              TEXT PRIMARY KEY,
     url             TEXT NOT NULL,
@@ -425,6 +443,8 @@ CREATE INDEX IF NOT EXISTS idx_watches_enabled ON watches(enabled);
             ("settings", "extension_last_used", "TEXT DEFAULT ''"),
             ("settings", "gdl_overrides", "TEXT DEFAULT '{}'"),
             ("settings", "presets", "TEXT DEFAULT '[]'"),
+            ("settings", "default_photo_format", "TEXT DEFAULT 'keep'"),
+            ("settings", "default_video_format", "TEXT DEFAULT 'keep'"),
             ("jobs", "hint", "TEXT DEFAULT ''"),
             ("jobs", "files_json", "TEXT DEFAULT '[]'"),
             ("jobs", "watch_id", "TEXT DEFAULT ''"),
@@ -466,11 +486,40 @@ def get_sites() -> List[dict]:
 
 
 # ── Hermetic gallery-dl config ───────────────────────────────────────────────
+# gallery-dl's own metadata never includes a "type" (Photos/Videos/GIFs/Audio)
+# field - no extractor produces one - so a plain {type} in a custom
+# folder/filename template would just render as literal unresolved text.
+# gallery-dl's directory/filename entries can also be a raw Python
+# expression instead of a {field}-style string, flagged with a "\fE " prefix
+# (see gallery_dl.formatter.parse/ExpressionFormatter) - evaluated per file,
+# with that file's own metadata (extension, category, ...) available as bare
+# names. That runs at the same time normal {category}-style fields resolve,
+# unlike a postprocessor hook (tried first; too late - path segments are
+# already built by the time any hook fires, verified live). Swapping a bare
+# "{type}" path segment for this expression is what makes {type} insertable
+# from the token menu and actually work like any other token.
+_TYPE_EXPR = (
+    "\fE 'Videos' if extension.lower() in "
+    "('mp4','mov','webm','mkv','avi','m4v','flv','wmv','mpg','mpeg','3gp','ogv','vob') "
+    "else 'GIFs' if extension.lower() == 'gif' "
+    "else 'Audio' if extension.lower() in ('mp3','wav','flac','m4a','aac','ogg','wma') "
+    "else 'Photos'"
+)
+
+
 def build_gdl_config(settings: dict, sites: List[dict]) -> dict:
     ex: Dict = {"base-directory": _abs_output(settings.get("output_dir"))}
 
     if int(settings.get("skip_existing", 1)):
         ex["archive"] = str(ARCHIVE_PATH)
+    else:
+        # Turning this off only disabled Grabbr's own archive above - gallery-dl
+        # has its own separate, always-on-by-default "skip if a file with
+        # this name already exists on disk" check, independent of any
+        # archive. Left alone, that still silently skips files even with
+        # this setting off, which is exactly backwards from what "off" means
+        # to the user (a real re-download).
+        ex["skip"] = False
     if settings.get("filename_format"):
         ex["filename"] = settings["filename_format"]
 
@@ -481,7 +530,12 @@ def build_gdl_config(settings: dict, sites: List[dict]) -> dict:
         ex["directory"] = []
     elif fs == "custom" and settings.get("folder_custom"):
         parts = [p for p in re.split(r"[\\/]+", settings["folder_custom"]) if p.strip()]
-        ex["directory"] = parts
+        # {type} isn't a real gallery-dl field - swap it for the expression
+        # segment above so it actually resolves instead of rendering as
+        # literal text. Only a lone "{type}" segment qualifies: mixing it
+        # into a bigger segment ({type}_{category}) would need string
+        # concatenation the expression above doesn't attempt.
+        ex["directory"] = [_TYPE_EXPR if p == "{type}" else p for p in parts]
     # "site_user" → leave unset so each extractor keeps its own layout.
 
     if float(settings.get("sleep_request", 0) or 0) > 0:
@@ -1076,6 +1130,14 @@ class JobManager:
 
         base_cfg = write_gdl_config()
         job_config_path = resolve_preset_config(job_opts, job_id, base_cfg=base_cfg)
+        if row.get("watch_id"):
+            # A watch that isn't strictly incremental defeats its own point -
+            # every tick would silently re-download the whole gallery again.
+            # Force this regardless of the global "Skip already-downloaded"
+            # toggle or anything a preset layered on top.
+            watch_overrides = {"extractor": {"archive": str(ARCHIVE_PATH), "skip": True}}
+            layer_base = json.loads(job_config_path.read_text(encoding="utf-8")) if job_config_path else base_cfg
+            job_config_path = write_job_config(job_id, watch_overrides, base_cfg=layer_base)
         argv = build_argv(url, settings, job_opts, config_path=job_config_path)
 
         db_run(
@@ -1243,6 +1305,8 @@ class JobManager:
                     video_path.unlink(missing_ok=True)
                 except Exception:
                     pass
+        await _apply_default_photo_format(written_files, settings)
+        await _apply_default_video_format(written_files, settings)
         if not int(settings.get("write_metadata", 0)):
             for raw in sidecar_sources:
                 try:
@@ -2013,6 +2077,8 @@ class SettingsIn(BaseModel):
     retries: Optional[int] = None
     skip_existing: Optional[bool] = None
     write_metadata: Optional[bool] = None
+    default_photo_format: Optional[str] = None
+    default_video_format: Optional[str] = None
     notifications_enabled: Optional[bool] = None
     cookies_mode: Optional[str] = None
     cookies_browser: Optional[str] = None
@@ -2496,6 +2562,7 @@ async def write_settings(body: SettingsIn):
     cols = [
         "output_dir", "filename_format", "folder_structure", "folder_custom", "default_range", "max_concurrent",
         "rate_limit", "proxy", "sleep_request", "retries", "skip_existing", "write_metadata",
+        "default_photo_format", "default_video_format",
         "notifications_enabled",
         "cookies_mode", "cookies_browser", "cookies_file", "theme", "language", "autostart", "updated_at",
     ]
@@ -2761,6 +2828,269 @@ def _convert_to_gif(video_path: Path) -> Optional[Path]:
     except Exception:
         return None
     return out if r.returncode == 0 and out.exists() and out.stat().st_size > 0 else None
+
+
+# ── Convert (standalone file conversion, not tied to a download) ───────────
+# Deliberately separate from the download-job pipeline: no extractor, no
+# archive, no URL - just "take this file on disk and make me another one".
+_PHOTO_IN_EXT = {
+    "jpg", "jpeg", "png", "webp", "bmp", "heic", "heif", "avif", "tif", "tiff",
+}
+_PHOTO_TARGETS = {"jpg", "png", "webp"}
+_VIDEO_IN_EXT = {
+    "mp4", "mov", "webm", "mkv", "avi", "m4v", "flv", "wmv", "mpg", "mpeg", "3gp", "ogv",
+}
+_VIDEO_TARGETS = {"mp4", "webm"}
+_PHOTO_QUALITY = {"high": 92, "medium": 80, "low": 62}
+_VIDEO_CRF = {"high": 18, "medium": 23, "low": 28}
+
+_HEIF_REGISTERED = False
+
+
+def _ensure_heif_opener():
+    global _HEIF_REGISTERED
+    if not _HEIF_REGISTERED:
+        import pillow_heif
+        pillow_heif.register_heif_opener()
+        _HEIF_REGISTERED = True
+
+
+def convert_kind_for(ext: str) -> Optional[str]:
+    ext = ext.lower().lstrip(".")
+    if ext in _PHOTO_IN_EXT:
+        return "photo"
+    if ext in _VIDEO_IN_EXT:
+        return "video"
+    return None
+
+
+def _convert_photo(src: Path, dest: Path, target: str, quality: str) -> None:
+    """Converts to a sibling temp file, then atomically replaces `dest` -
+    required, not just nice-to-have: "compress this jpg" targets the same
+    extension it already has, so src and dest are often the exact same
+    path. Reading src and writing straight to dest in that case would read
+    and overwrite one file at once; a crash mid-write would also corrupt an
+    unrelated existing dest, not just leave a stray temp file behind."""
+    _ensure_heif_opener()
+    from PIL import Image
+    q = _PHOTO_QUALITY.get(quality, 92)
+    tmp = dest.with_name(f"{dest.stem}.grabbr-tmp{dest.suffix}")
+    try:
+        with Image.open(src) as im:
+            im.load()  # force the full decode from src before touching dest/tmp
+            if target == "jpg":
+                im.convert("RGB").save(tmp, "JPEG", quality=q)
+            elif target == "png":
+                im.convert("RGBA" if im.mode in ("RGBA", "LA", "P") else "RGB").save(tmp, "PNG")
+            elif target == "webp":
+                im.save(tmp, "WEBP", quality=q)
+            else:
+                raise ValueError(f"unsupported photo target: {target}")
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)  # no-op once the replace above has moved it
+
+
+def _convert_video(src: Path, dest: Path, target: str, quality: str) -> None:
+    """Same temp-file-then-atomic-replace reasoning as _convert_photo - a
+    same-extension "just compress this" request makes src == dest here too."""
+    ff = _ffmpeg_bin()
+    if not ff:
+        raise RuntimeError("FFmpeg isn't installed - install it from Settings > Tools")
+    crf = _VIDEO_CRF.get(quality, 23)
+    # ffmpeg infers its output muxer from the destination filename's own
+    # extension (no explicit -f here) - a ".part"-style suffix that hides
+    # the real extension makes it fail to pick a format at all. Keeping the
+    # real extension last (".grabbr-tmp.mp4") is what makes this work.
+    tmp = dest.with_name(f"{dest.stem}.grabbr-tmp{dest.suffix}")
+    argv = [ff, "-y", "-loglevel", "error", "-i", str(src)]
+    if target == "mp4":
+        argv += ["-c:v", "libx264", "-preset", "medium", "-crf", str(crf),
+                  "-c:a", "aac", "-movflags", "+faststart"]
+    elif target == "webm":
+        argv += ["-c:v", "libvpx-vp9", "-crf", str(crf), "-b:v", "0", "-c:a", "libopus"]
+    else:
+        raise ValueError(f"unsupported video target: {target}")
+    argv.append(str(tmp))
+    try:
+        r = subprocess.run(
+            argv, capture_output=True, timeout=1800,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        if r.returncode != 0 or not tmp.exists():
+            raise RuntimeError((r.stderr or b"").decode("utf-8", "replace")[-2000:] or "ffmpeg failed")
+        os.replace(tmp, dest)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
+# jpg/jpeg are the same format under two spellings - normalizing one to the
+# other is a free rename, never a re-encode (unlike an actual format change,
+# which always goes through _convert_photo/_convert_video below).
+_PHOTO_ALIASES = {"jpg": "jpg", "jpeg": "jpg", "png": "png", "webp": "webp"}
+
+
+async def _apply_default_photo_format(written_files: List[str], settings: dict) -> None:
+    """Settings > Files: "Default photo format". Runs after GIF conversion
+    (which already claimed any real GIF) so a Twitter animated_gif never
+    gets swept up here - .gif was never in _PHOTO_IN_EXT to begin with."""
+    target = (settings.get("default_photo_format") or "keep").lower()
+    if target == "keep" or target not in _PHOTO_TARGETS:
+        return
+    for i, raw in enumerate(list(written_files)):
+        p = Path(raw)
+        ext = p.suffix.lower().lstrip(".")
+        if ext not in _PHOTO_IN_EXT:
+            continue
+        if _PHOTO_ALIASES.get(ext, ext) == target:
+            if ext != target:
+                dest = p.with_suffix(f".{target}")
+                try:
+                    p.rename(dest)
+                    written_files[i] = str(dest)
+                except Exception:
+                    pass
+            continue
+        dest = p.with_suffix(f".{target}")
+        try:
+            await asyncio.to_thread(_convert_photo, p, dest, target, "high")
+            p.unlink(missing_ok=True)
+            written_files[i] = str(dest)
+        except Exception as e:
+            log.warning("default photo format conversion failed for %s: %s", p, e)
+
+
+async def _apply_default_video_format(written_files: List[str], settings: dict) -> None:
+    """Settings > Files: "Default video format". Same non-fatal-on-failure
+    stance as the photo version - a normalization that fails just leaves the
+    original file in place rather than losing the download entirely."""
+    target = (settings.get("default_video_format") or "keep").lower()
+    if target == "keep" or target not in _VIDEO_TARGETS:
+        return
+    for i, raw in enumerate(list(written_files)):
+        p = Path(raw)
+        ext = p.suffix.lower().lstrip(".")
+        if ext not in _VIDEO_IN_EXT or ext == target:
+            continue
+        dest = p.with_suffix(f".{target}")
+        try:
+            await asyncio.to_thread(_convert_video, p, dest, target, "medium")
+            p.unlink(missing_ok=True)
+            written_files[i] = str(dest)
+        except Exception as e:
+            log.warning("default video format conversion failed for %s: %s", p, e)
+
+
+class ConversionManager:
+    """Lightweight sibling to JobManager: no queue persistence across
+    restarts, no pause/retry semantics - a conversion is a single local file
+    operation, not a multi-stage network job. A small concurrency cap still
+    matters (a batch of 30 photos shouldn't all hit the CPU/disk at once)."""
+
+    def __init__(self):
+        self.sem = asyncio.Semaphore(2)
+
+    async def start(self, conv_id: str):
+        asyncio.create_task(self._run(conv_id))
+
+    async def _run(self, conv_id: str):
+        async with self.sem:
+            row = db_one("SELECT * FROM conversions WHERE id=?", (conv_id,))
+            if not row or row["status"] != "queued":
+                return
+            db_run("UPDATE conversions SET status='running' WHERE id=?", (conv_id,))
+            await ws_manager.broadcast({"type": "convert.update", "conversion": _conversion_public(
+                db_one("SELECT * FROM conversions WHERE id=?", (conv_id,)))})
+
+            src = Path(row["src_path"])
+            dest = Path(row["dest_path"])
+            try:
+                if not src.is_file():
+                    raise FileNotFoundError(f"Source file no longer exists: {src}")
+                if row["kind"] == "photo":
+                    await asyncio.to_thread(_convert_photo, src, dest, row["target"], row["quality"])
+                else:
+                    await asyncio.to_thread(_convert_video, src, dest, row["target"], row["quality"])
+                dest_size = dest.stat().st_size if dest.exists() else 0
+                db_run(
+                    "UPDATE conversions SET status='done', dest_size=?, finished_at=? WHERE id=?",
+                    (dest_size, _now(), conv_id),
+                )
+            except Exception as e:
+                db_run(
+                    "UPDATE conversions SET status='error', error_text=?, finished_at=? WHERE id=?",
+                    (str(e)[-2000:], _now(), conv_id),
+                )
+            await ws_manager.broadcast({"type": "convert.update", "conversion": _conversion_public(
+                db_one("SELECT * FROM conversions WHERE id=?", (conv_id,)))})
+
+
+convert_manager = ConversionManager()
+
+
+def _conversion_public(row: Optional[dict]) -> dict:
+    return dict(row) if row else {}
+
+
+class ConvertItem(BaseModel):
+    path: str
+    target: str
+    quality: str = "high"
+
+
+class ConvertIn(BaseModel):
+    items: List[ConvertItem]
+
+
+@api.post("/convert")
+async def create_conversions(body: ConvertIn):
+    created = []
+    for item in body.items:
+        src = Path(item.path)
+        if not src.is_file():
+            raise HTTPException(400, f"File not found: {item.path}")
+        kind = convert_kind_for(src.suffix)
+        if kind is None:
+            raise HTTPException(400, f"Unsupported file type: {src.name}")
+        targets = _PHOTO_TARGETS if kind == "photo" else _VIDEO_TARGETS
+        if item.target not in targets:
+            raise HTTPException(400, f"Unsupported target '{item.target}' for {kind}")
+        conv_id = uuid.uuid4().hex
+        dest = src.with_suffix(f".{item.target}")
+        # Never silently overwrite something else already at the target name.
+        n = 1
+        while dest.exists() and dest != src:
+            dest = src.with_name(f"{src.stem} ({n}).{item.target}")
+            n += 1
+        db_run(
+            """INSERT INTO conversions
+               (id, src_path, src_name, src_size, kind, target, quality, status, dest_path, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)""",
+            (conv_id, str(src), src.name, src.stat().st_size, kind, item.target,
+             item.quality, str(dest), _now()),
+        )
+        row = _conversion_public(db_one("SELECT * FROM conversions WHERE id=?", (conv_id,)))
+        created.append(row)
+        await ws_manager.broadcast({"type": "convert.update", "conversion": row})
+        await convert_manager.start(conv_id)
+    return {"created": created}
+
+
+@api.get("/convert")
+def list_conversions():
+    return [_conversion_public(r) for r in db_all("SELECT * FROM conversions ORDER BY created_at DESC LIMIT 200")]
+
+
+@api.delete("/convert/{conv_id}")
+def remove_conversion(conv_id: str):
+    db_run("DELETE FROM conversions WHERE id=?", (conv_id,))
+    return {"ok": True}
+
+
+@api.delete("/convert")
+def clear_finished_conversions():
+    db_run("DELETE FROM conversions WHERE status IN ('done','error')")
+    return {"ok": True}
 
 
 @api.get("/thumb")

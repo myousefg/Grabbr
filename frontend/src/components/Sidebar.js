@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Clock, Settings, Download, KeyRound, SlidersHorizontal, Bell } from 'lucide-react';
+import { LayoutDashboard, Clock, Settings, Download, KeyRound, SlidersHorizontal, Bell, ArrowLeftRight } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
@@ -10,15 +10,17 @@ export default function Sidebar() {
 
   const navItems = [
     { to: '/',        icon: LayoutDashboard, label: t('nav.dashboard') },
-    { to: '/history', icon: Clock,           label: t('nav.history') },
+    { to: '/convert', icon: ArrowLeftRight,  label: t('nav.convert') },
     { to: '/watch',   icon: Bell,            label: t('nav.watch') },
+    { to: '/history', icon: Clock,           label: t('nav.history') },
     { to: '/sites',   icon: KeyRound,        label: t('nav.sites') },
   ];
 
   const linkClass = ({ isActive }) =>
-    `flex items-center gap-3 px-3 py-2.5 rounded-md text-xs tracking-[0.1em] font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
-      isActive ? 'bg-primary text-primary-foreground'
-               : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+    `relative flex items-center gap-3 px-3 py-2.5 rounded-md text-xs tracking-[0.1em] font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+      isActive
+        ? 'text-foreground bg-primary/[0.13] before:absolute before:-left-3 before:top-2 before:bottom-2 before:w-[3px] before:rounded-r-sm before:bg-primary [&_svg]:text-primary'
+        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
     }`;
 
   return (

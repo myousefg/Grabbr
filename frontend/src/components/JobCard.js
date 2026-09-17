@@ -16,11 +16,23 @@ import { snappy } from '@/lib/motion';
 
 const STATUS_STYLE = {
   queued:   'bg-muted text-muted-foreground',
-  running:  'bg-primary text-primary-foreground',
+  running:  'bg-primary/15 text-primary',
   paused:   'bg-amber-500/15 text-amber-600 dark:text-amber-400',
   done:     'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
   error:    'bg-destructive/15 text-destructive',
   canceled: 'bg-muted text-muted-foreground',
+};
+
+// A colored left border on the card itself, so a queue full of cards can be
+// scanned for "what's actively running" at a glance, not just by reading
+// each pill's text.
+const STATUS_BORDER = {
+  queued:   'border-l-border',
+  running:  'border-l-primary',
+  paused:   'border-l-amber-500',
+  done:     'border-l-border',
+  error:    'border-l-destructive',
+  canceled: 'border-l-border',
 };
 
 const LINE_COLOR = {
@@ -60,7 +72,10 @@ export default function JobCard({ job }) {
   const openFolder = () => { if (isElectron && job.dest_dir) window.electronAPI.openPath(job.dest_dir); };
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-3 surface-elevated" data-testid={`job-${job.id}`}>
+    <div
+      className={`border border-border ${STATUS_BORDER[job.status] || 'border-l-border'} border-l-[3px] rounded-lg p-4 space-y-3 surface-elevated`}
+      data-testid={`job-${job.id}`}
+    >
       <div className="flex items-start gap-3">
         <div aria-live="polite" role="status">
           <AnimatePresence mode="wait">

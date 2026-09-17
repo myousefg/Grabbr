@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutDashboard, KeyRound, Wrench, History as HistoryIcon, Sparkles } from 'lucide-react';
+import { LayoutDashboard, KeyRound, Wrench, History as HistoryIcon, Sparkles, Bell } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -19,6 +19,7 @@ export function markIntroDone() {
 const STEPS = [
   { key: 'welcome', icon: Sparkles, to: '/' },
   { key: 'dashboard', icon: LayoutDashboard, to: '/' },
+  { key: 'watch', icon: Bell, to: '/watch' },
   { key: 'history', icon: HistoryIcon, to: '/history' },
   { key: 'sites', icon: KeyRound, to: '/sites' },
   { key: 'tools', icon: Wrench, to: '/settings' },
