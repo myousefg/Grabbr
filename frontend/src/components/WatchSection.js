@@ -69,7 +69,7 @@ function WatchRow({ w, active, onUpdate, onRemove, onCheckNow }) {
   );
 }
 
-export default function WatchSection({ watches, onUpdate, onRemove, onCheckNow }) {
+export default function WatchSection({ watches, onUpdate, onRemove, onCheckNow, emptyMessage }) {
   const { t } = useI18n();
   const { active } = useJobs();
   const activeWatchIds = useMemo(
@@ -77,7 +77,14 @@ export default function WatchSection({ watches, onUpdate, onRemove, onCheckNow }
     [active],
   );
 
-  if (!watches.length) return null;
+  if (!watches.length) {
+    if (!emptyMessage) return null;
+    return (
+      <p className="text-sm text-muted-foreground border border-dashed border-border rounded-lg p-6 text-center">
+        {emptyMessage}
+      </p>
+    );
+  }
 
   const update = async (id, patch) => {
     try { await onUpdate(id, patch); } catch { toast.error(t('watch.actionFailed')); }
@@ -90,16 +97,13 @@ export default function WatchSection({ watches, onUpdate, onRemove, onCheckNow }
   };
 
   return (
-    <section className="space-y-3">
-      <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground block">{t('watch.section')}</span>
-      <div className="space-y-2">
-        {watches.map(w => (
-          <WatchRow
-            key={w.id} w={w} active={activeWatchIds.has(w.id)}
-            onUpdate={update} onRemove={remove} onCheckNow={checkNow}
-          />
-        ))}
-      </div>
-    </section>
+    <div className="space-y-2">
+      {watches.map(w => (
+        <WatchRow
+          key={w.id} w={w} active={activeWatchIds.has(w.id)}
+          onUpdate={update} onRemove={remove} onCheckNow={checkNow}
+        />
+      ))}
+    </div>
   );
 }

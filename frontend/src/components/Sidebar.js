@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Clock, Settings, Download, KeyRound, SlidersHorizontal } from 'lucide-react';
+import { LayoutDashboard, Clock, Settings, Download, KeyRound, SlidersHorizontal, Bell } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
@@ -11,6 +11,7 @@ export default function Sidebar() {
   const navItems = [
     { to: '/',        icon: LayoutDashboard, label: t('nav.dashboard') },
     { to: '/history', icon: Clock,           label: t('nav.history') },
+    { to: '/watch',   icon: Bell,            label: t('nav.watch') },
     { to: '/sites',   icon: KeyRound,        label: t('nav.sites') },
   ];
 

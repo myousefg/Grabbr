@@ -2,6 +2,7 @@
   "nav": {
     "dashboard": "DASHBOARD",
     "history": "HISTORY",
+    "watch": "WATCH",
     "sites": "SITES",
     "settings": "SETTINGS",
     "advanced": "ADVANCED",
@@ -125,7 +126,7 @@
     "addHint": "Check this page again automatically and download anything new",
     "added": "Watching this page",
     "addFailed": "Could not add watch",
-    "section": "Watching",
+    "empty": "Nothing being watched yet. Paste a URL above to start.",
     "pause": "Pause checking",
     "resume": "Resume checking",
     "checkNow": "Check now",

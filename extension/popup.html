@@ -5,7 +5,7 @@
 <title>Grabbr</title>
 <style>
   :root {
-    --accent: #ff6452;
+    --accent: #ff5c5c;
     --accent-ink: #1a1210;
     --bg: #0a0a0a;
     --surface: #141414;
@@ -54,8 +54,8 @@
     transition: border-color .12s ease, box-shadow .12s ease;
   }
   select:focus, input[type="text"]:focus {
-    outline: none; border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+    outline: none; border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
   }
 
   .row { display: flex; gap: 8px; margin-bottom: 13px; animation: revealIn .16s ease-out; }
@@ -80,10 +80,7 @@
   #send-area { animation: revealIn .16s ease-out; }
   #send-area[hidden] { display: none; }
 
-  #media-detect {
-    background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius);
-    padding: 10px 11px; margin: 0 0 13px; animation: revealIn .16s ease-out;
-  }
+  #media-detect { margin: 0 0 13px; animation: revealIn .16s ease-out; }
   #media-detect[hidden] { display: none; }
   #media-detect label { display: block; font-size: 10.5px; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
   #media-detect select { width: 100%; }

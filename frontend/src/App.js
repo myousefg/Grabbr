@@ -12,6 +12,7 @@ import Layout from '@/components/Layout';
 import Onboarding, { introDismissed } from '@/components/Onboarding';
 import Dashboard from '@/pages/Dashboard';
 import History from '@/pages/History';
+import Watch from '@/pages/Watch';
 import Sites from '@/pages/Sites';
 import Settings from '@/pages/Settings';
 import Advanced from '@/pages/Advanced';
@@ -49,6 +50,7 @@ function RoutedShell() {
           <Routes>
             <Route path="/"        element={<Dashboard />} />
             <Route path="/history" element={<History />} />
+            <Route path="/watch"   element={<Watch />} />
             <Route path="/sites"   element={<Sites />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/advanced" element={<Advanced />} />

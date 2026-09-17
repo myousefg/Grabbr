@@ -6,11 +6,12 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## [1.5.0] - 2026-09-17
 
 ### Added
-- Watch a page: turn any single URL on the Dashboard into a recurring check (15 minutes up to
-  24 hours). Grabbr re-runs it on that schedule and only downloads anything new, the same
-  skip-already-downloaded logic a normal re-run already relies on, so a check that finds nothing
-  never clutters History. A new "Watching" section lists what's being watched, when it last
-  checked, and what it found, with pause/check-now/remove controls.
+- Watch a page: a new Watch page (sidebar) turns any URL into a recurring check (15 minutes up to
+  24 hours), and Dashboard has a quick "Watch" button for the URL you've already pasted. Grabbr
+  re-runs it on that schedule and only downloads anything new, the same skip-already-downloaded
+  logic a normal re-run already relies on, so a check that finds nothing never clutters History.
+  The Watch page lists what's being watched, when it last checked, and what it found, with
+  pause/check-now/remove controls.
 - A refreshed color direction for the desktop app and the browser extension popup: one accent
   color (previously plain grayscale) plus slightly softer corners, chosen after specifically
   avoiding the cyan/violet combination that reads as generic AI-tool branding.

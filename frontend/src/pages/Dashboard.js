@@ -10,13 +10,11 @@ import {
 import JobCard from '@/components/JobCard';
 import PreviewDialog from '@/components/PreviewDialog';
 import OutputSettings from '@/components/OutputSettings';
-import WatchSection from '@/components/WatchSection';
 import { useI18n } from '@/context/I18nProvider';
 import { useJobs } from '@/context/JobsProvider';
 import { useSettings } from '@/context/SettingsProvider';
 import { isElectron } from '@/lib/electron';
-import { presetsApi } from '@/lib/api';
-import { useWatches } from '@/lib/watches';
+import { presetsApi, watchesApi } from '@/lib/api';
 import { snappy, listItem } from '@/lib/motion';
 
 const MODES = ['auto', 'page', 'scan'];
@@ -72,7 +70,6 @@ export default function Dashboard() {
   const [presets, setPresets] = useState([]);
   const [preset, setPreset] = useState('none');
   const urlInputId = useId();
-  const { watches, add: addWatch, update: updateWatch, remove: removeWatch, checkNow: checkWatchNow } = useWatches();
 
   useEffect(() => { presetsApi.list().then(setPresets).catch(() => {}); }, []);
 
@@ -137,7 +134,7 @@ export default function Dashboard() {
     if (!isValidUrl(urls[0])) { toast.error(t('dashboard.invalidUrl')); return; }
     setWatching(true);
     try {
-      await addWatch(applyMode(urls[0], mode), 60, jobOptions());
+      await watchesApi.create(applyMode(urls[0], mode), 60, jobOptions());
       toast.success(t('watch.added'));
     } catch {
       toast.error(t('watch.addFailed'));
@@ -308,8 +305,6 @@ export default function Dashboard() {
           </div>
         )}
       </section>
-
-      <WatchSection watches={watches} onUpdate={updateWatch} onRemove={removeWatch} onCheckNow={checkWatchNow} />
 
       <OutputSettings />
 
